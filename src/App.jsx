@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import AppHeader from './components/AppHeader.jsx'
-import CutScorePanel from './components/CutScorePanel.jsx'
 import DataNotice from './components/DataNotice.jsx'
 import GuildSelector from './components/GuildSelector.jsx'
 import GuildSummaryCard from './components/GuildSummaryCard.jsx'
@@ -11,16 +10,14 @@ import { guildConfigs, menuItems } from './config/guildConfig.js'
 import { fallbackGuilds } from './data/fallbackGuilds.js'
 import { fetchGuildSeason, fetchPlayerSeason } from './services/growCastleApi.js'
 import {
-  clearAllScoreHistory,
   compareAndSaveScoreHistory,
   mergeMembersWithHistory,
   readScoreHistory,
 } from './services/scoreHistory.js'
 import { createSeasonArchive, readSeasonArchives, shouldAutoArchive, upsertSeasonArchive } from './services/seasonArchive.js'
 import { fetchSharedSeasonArchives } from './services/serverHistoryApi.js'
-import { clearWphHistory, getLatestWphRecords } from './services/wphHistory.js'
+import { getLatestWphRecords } from './services/wphHistory.js'
 
-const CUT_SCORE_STORAGE_KEY = 'shalom-info-cut-scores'
 const INACTIVE_HOURS_THRESHOLD = 6
 const GUILD_ORDER = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const MAX_GUILD_MEMBERS = 20
@@ -30,20 +27,6 @@ const GUILD_NICKNAME_PATTERN = /^SL_/i
 function createDefaultCutScores() {
   return Object.fromEntries(guildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
 }
-
-function readSavedCutScores() {
-  if (typeof window === 'undefined') return createDefaultCutScores()
-
-  try {
-    return {
-      ...createDefaultCutScores(),
-      ...JSON.parse(window.localStorage.getItem(CUT_SCORE_STORAGE_KEY) || '{}'),
-    }
-  } catch {
-    return createDefaultCutScores()
-  }
-}
-
 
 function getFallbackGuild(config, cutScore) {
   const fallback = fallbackGuilds.find((guild) => guild.guildName === config.guildName)
@@ -400,6 +383,7 @@ function getGuildStaffData(guild, cutScores) {
   return {
     inactiveMembers: sortInactiveMembers(activityMembers.filter((member) => member.diffHours !== null && member.diffHours >= INACTIVE_HOURS_THRESHOLD)),
     moveCandidates: getMoveCandidatesForGuild(guild, cutScores),
+    newMembers: sortByScore(activityMembers.filter((member) => member.isProratedCut)),
     nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
     seasonNotJoinedMembers: sortInactiveMembers(activityMembers.filter((member) => member.seasonNotJoined)),
     shortageMembers,
@@ -421,6 +405,7 @@ function getGuildStats(guild, staffData) {
     maxMembers: MAX_GUILD_MEMBERS,
     memberCount,
     moveCandidateCount: staffData.moveCandidates.length,
+    newMemberCount: staffData.newMembers.length,
     nicknameWarningCount: staffData.nicknameWarningMembers.length,
     seasonNotJoinedCount: staffData.seasonNotJoinedMembers.length,
     totalScore,
@@ -508,6 +493,98 @@ function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName }) 
         </section>
       )}
       <p className="selected-debug">현재 선택 길드: {selectedGuildName}</p>
+      <StaffNotice />
+    </PageShell>
+  )
+}
+
+function NewMembersPage({ guildStats }) {
+  const totalNewMembers = guildStats.reduce((sum, entry) => sum + entry.staffData.newMembers.length, 0)
+  const totalNicknameWarnings = guildStats.reduce((sum, entry) => sum + entry.staffData.nicknameWarningMembers.length, 0)
+
+  return (
+    <PageShell eyebrow="New Members" title="신규 확인">
+      <section className="staff-section">
+        <div className="section-title">
+          <span>시즌 중 신규 / 닉네임 양식</span>
+          <h2>
+            신규 {totalNewMembers}명 · 닉네임 확인 {totalNicknameWarnings}명
+          </h2>
+        </div>
+        <p className="page-note">
+          신규 기준은 API 가입 시간이 아니라 앱이 해당 닉네임을 처음 관측한 시각입니다. 시즌 중 신규는 남은 시즌 시간 기준 보정컷을 적용합니다.
+        </p>
+      </section>
+
+      {guildStats.map(({ guild, staffData }, index) => (
+        <section className="staff-section" key={`${guild.guildName}-new-members`}>
+          <div className="section-title">
+            <span>{getTierLabel(index)}</span>
+            <h2>{guild.guildName}</h2>
+          </div>
+
+          <div className="staff-summary-block">
+            <span>시즌 중 신규 관측</span>
+            {staffData.newMembers.length === 0 ? (
+              <p className="summary-empty">신규 관측 대상 없음</p>
+            ) : (
+              <div className="staff-card-list compact-list">
+                {staffData.newMembers.map((member) => (
+                  <article className="staff-row-card" key={`${guild.guildName}-new-${member.nickname}`}>
+                    <div className="member-title-row">
+                      <strong>{member.nickname}</strong>
+                      <span className="status-badge">신규</span>
+                    </div>
+                    <dl className="mini-fields">
+                      <div>
+                        <dt>현재 점수</dt>
+                        <dd>{formatNumber(member.score)}점</dd>
+                      </div>
+                      <div>
+                        <dt>기본 컷</dt>
+                        <dd>{formatNumber(guild.cutScore)}점</dd>
+                      </div>
+                      <div>
+                        <dt>적용 컷</dt>
+                        <dd>{formatNumber(member.effectiveCutScore)}점</dd>
+                      </div>
+                      <div>
+                        <dt>부족</dt>
+                        <dd>{formatNumber(Math.max(0, member.effectiveCutScore - member.score))}점</dd>
+                      </div>
+                      <div>
+                        <dt>처음 확인</dt>
+                        <dd>{formatDateTime(member.joinedDuringSeasonAt)}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="staff-summary-block">
+            <span>닉네임 양식 확인</span>
+            {staffData.nicknameWarningMembers.length === 0 ? (
+              <p className="summary-empty">닉네임 양식 확인 대상 없음</p>
+            ) : (
+              <div className="staff-card-list compact-list">
+                {staffData.nicknameWarningMembers.map((member) => (
+                  <article className="staff-row-card" key={`${guild.guildName}-nickname-${member.nickname}`}>
+                    <div className="member-title-row">
+                      <strong>{member.nickname}</strong>
+                      <span className="status-badge">SL_ 확인</span>
+                    </div>
+                    <span>현재 점수: {formatNumber(member.score)}점</span>
+                    <p>권장 양식: SL_ 로 시작</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      ))}
+
       <StaffNotice />
     </PageShell>
   )
@@ -694,60 +771,13 @@ function MoveCandidatesPage({ selectedEntry, selectedGuildName }) {
   )
 }
 
-function SettingsPage({
-  cutScores,
-  onClearActivityCache,
-  onClearPredictionHistory,
-  onClearScoreAndWphHistory,
-  onCutScoreChange,
-  onCutScoreReset,
-  onRefreshAllGuilds,
-  onRefreshSelectedGuild,
-  selectedGuildName,
-}) {
-  return (
-    <PageShell eyebrow="Staff Settings" title="설정">
-      <section className="settings-grid">
-        {guildConfigs.map((config) => (
-          <CutScorePanel
-            cutScore={cutScores[config.guildName] ?? config.defaultCutScore}
-            defaultCutScore={config.defaultCutScore}
-            guildName={config.guildName}
-            key={config.guildName}
-            onChange={(value) => onCutScoreChange(config.guildName, value)}
-            onReset={() => onCutScoreReset(config)}
-          />
-        ))}
-      </section>
-      <section className="refresh-panel settings-actions">
-        <button type="button" onClick={onRefreshSelectedGuild}>
-          {selectedGuildName} 새로고침
-        </button>
-        <button type="button" onClick={onRefreshAllGuilds}>
-          전체 길드 새로고침
-        </button>
-        <button type="button" className="danger-button" onClick={onClearActivityCache}>
-          활동 기록 캐시 초기화
-        </button>
-        <button type="button" className="danger-button" onClick={onClearPredictionHistory}>
-          예측 기록 초기화
-        </button>
-        <button type="button" className="danger-button" onClick={onClearScoreAndWphHistory}>
-          WPH/score 기록 초기화
-        </button>
-        <p className="page-note">1분 자동 새로고침은 사용하지 않습니다.</p>
-      </section>
-    </PageShell>
-  )
-}
-
 function App() {
   const [activePage, setActivePage] = useState('status')
   const [apiStates, setApiStates] = useState({})
   const [archiveStatus, setArchiveStatus] = useState('')
   const [archives, setArchives] = useState(readSeasonArchives)
   const [clockNow, setClockNow] = useState(() => Date.now())
-  const [cutScores, setCutScores] = useState(readSavedCutScores)
+  const cutScores = useMemo(() => createDefaultCutScores(), [])
   const [guildData, setGuildData] = useState({})
   const [historyByGuild, setHistoryByGuild] = useState(() =>
     Object.fromEntries(guildConfigs.map((config) => [config.guildName, readScoreHistory(config.guildName)])),
@@ -931,10 +961,6 @@ function App() {
     [cutScores, fetchPlayerRecordsForGuild, updateApiState],
   )
 
-  const refreshAllGuilds = useCallback(() => {
-    guildConfigs.forEach((config) => refreshGuild(config))
-  }, [refreshGuild])
-
   const saveSeasonArchive = useCallback(
     async () => {
       if (archiveSavingRef.current) return
@@ -1008,7 +1034,7 @@ function App() {
   }, [activePage, guildData, refreshGuild])
 
   useEffect(() => {
-    if (activePage !== 'attention') return
+    if (activePage !== 'attention' && activePage !== 'new-members') return
     guildConfigs.forEach((config) => {
       if (!guildData[config.guildName]) refreshGuild(config)
     })
@@ -1027,46 +1053,6 @@ function App() {
     if (nextConfig) refreshGuild(nextConfig)
   }
 
-  const handleCutScoreChange = (guildName, value) => {
-    const nextScores = { ...cutScores, [guildName]: Math.max(0, Math.round(value)) }
-    setCutScores(nextScores)
-    window.localStorage.setItem(CUT_SCORE_STORAGE_KEY, JSON.stringify(nextScores))
-  }
-
-  const handleCutScoreReset = (config) => handleCutScoreChange(config.guildName, config.defaultCutScore)
-
-  const clearScoreHistoryState = () => {
-    clearAllScoreHistory(guildConfigs.map((config) => config.guildName))
-    setHistoryByGuild(Object.fromEntries(guildConfigs.map((config) => [config.guildName, {}])))
-  }
-
-  const clearProjectionStorageState = () => {
-    if (typeof window === 'undefined') return
-    Object.keys(window.localStorage)
-      .filter((key) => key.startsWith('shalomInfo_projectionHistory_'))
-      .forEach((key) => window.localStorage.removeItem(key))
-  }
-
-  const clearWphHistoryState = () => {
-    guildConfigs.forEach((config) => clearWphHistory(config.guildName))
-    setWphRecordsByGuild(Object.fromEntries(guildConfigs.map((config) => [config.guildName, {}])))
-  }
-
-  const handleClearActivityCache = () => {
-    clearWphHistoryState()
-  }
-
-  const handleClearScoreAndWphHistory = () => {
-    clearScoreHistoryState()
-    clearProjectionStorageState()
-    clearWphHistoryState()
-  }
-
-  const handleClearPredictionHistory = () => {
-    clearScoreHistoryState()
-    clearProjectionStorageState()
-  }
-
   const handleSelectPage = (pageId) => {
     setActivePage(pageId)
     setIsMenuOpen(false)
@@ -1079,7 +1065,7 @@ function App() {
       {isMenuOpen && <button type="button" className="drawer-backdrop" aria-label="메뉴 닫기" onClick={() => setIsMenuOpen(false)} />}
 
       <main className="main-content">
-        {activePage !== 'attention' && (
+        {activePage !== 'attention' && activePage !== 'new-members' && (
           <>
             <GuildSelector guilds={guilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
             <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
@@ -1094,6 +1080,7 @@ function App() {
             selectedGuildName={selectedGuildName}
           />
         )}
+        {activePage === 'new-members' && <NewMembersPage guildStats={guildStats} />}
         {activePage === 'attention' && (
           <AttentionPage
             archiveStatus={archiveStatus}
@@ -1101,19 +1088,6 @@ function App() {
           />
         )}
         {activePage === 'moves' && <MoveCandidatesPage selectedEntry={selectedEntry} selectedGuildName={selectedGuildName} />}
-        {activePage === 'settings' && (
-          <SettingsPage
-            cutScores={cutScores}
-            onClearActivityCache={handleClearActivityCache}
-            onClearPredictionHistory={handleClearPredictionHistory}
-            onClearScoreAndWphHistory={handleClearScoreAndWphHistory}
-            onCutScoreChange={handleCutScoreChange}
-            onCutScoreReset={handleCutScoreReset}
-            onRefreshAllGuilds={refreshAllGuilds}
-            onRefreshSelectedGuild={() => refreshGuild(selectedConfig)}
-            selectedGuildName={selectedGuildName}
-          />
-        )}
       </main>
     </div>
   )

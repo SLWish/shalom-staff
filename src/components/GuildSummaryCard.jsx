@@ -104,6 +104,10 @@ function GuildSummaryCard({ guild, stats, summary }) {
           <strong>{stats.unverifiedCount}명</strong>
         </div>
         <div>
+          <span>신규 확인</span>
+          <strong>{stats.newMemberCount}명</strong>
+        </div>
+        <div>
           <span>닉네임 확인</span>
           <strong>{stats.nicknameWarningCount}명</strong>
         </div>
@@ -163,18 +167,6 @@ function GuildSummaryCard({ guild, stats, summary }) {
               </div>
               <span>{member.score.toLocaleString()}점</span>
               <em>{member.wph?.errorMessage || '상세 불러오기 실패'}</em>
-            </>
-          )}
-        />
-        <SummaryList
-          emptyText="닉네임 양식 확인 대상 없음"
-          items={summary.nicknameWarningMembers}
-          title="닉네임 양식 확인"
-          renderItem={(member) => (
-            <>
-              <strong>{member.nickname}</strong>
-              <span>현재 점수: {member.score.toLocaleString()}점</span>
-              <em>권장 양식: SL_ 로 시작</em>
             </>
           )}
         />
