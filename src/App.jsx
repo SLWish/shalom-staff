@@ -85,6 +85,14 @@ function getSeasonStartTime(guild) {
 }
 
 function getMemberCutMeta(member, guild, cutScore) {
+  if (!member.history?.isNewDuringSeason) {
+    return {
+      effectiveCutScore: cutScore,
+      isProratedCut: false,
+      joinedDuringSeasonAt: null,
+    }
+  }
+
   const seasonStartTime = getSeasonStartTime(guild)
   const seasonEndTime = getValidRecordTime(guild.seasonEndAt)
   const firstSeenTime = getValidRecordTime(member.history?.firstSeenAt)

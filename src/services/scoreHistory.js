@@ -182,7 +182,8 @@ export function compareAndSaveScoreHistory(guildName, members, options = {}) {
       const recordTime = toTime(record.checkedAt)
       return isValidScoreRecord(record) && recordTime !== null && checkedTime - recordTime <= MAX_RECORD_AGE_MS
     })
-    const firstSeenAt = previous?.firstSeenAt || previous?.firstCheckedAt || (hasExistingHistory ? checkedAt : null)
+    const isNewDuringSeason = Boolean(previous?.isNewDuringSeason) || (!previous && hasExistingHistory)
+    const firstSeenAt = isNewDuringSeason ? previous?.firstSeenAt || checkedAt : null
     const scoreDelta = typeof previousScore === 'number' ? Number(member.score) - previousScore : null
     const stagnantCount =
       scoreDelta === 0 && previous?.stagnantCount ? previous.stagnantCount + 1 : scoreDelta === 0 ? 1 : 0
@@ -192,6 +193,7 @@ export function compareAndSaveScoreHistory(guildName, members, options = {}) {
       currentScore: Number(member.score),
       firstSeenAt,
       increasedBy: scoreDelta ?? 0,
+      isNewDuringSeason,
       lastCheckedAt: checkedAt,
       lastIncreasedAt: scoreDelta > 0 ? checkedAt : previous?.lastIncreasedAt || null,
       nickname: member.nickname,
@@ -226,6 +228,7 @@ export function mergeMembersWithHistory(members, history, cutScore) {
       history: {
         firstSeenAt: record?.firstSeenAt || null,
         increasedBy: record?.increasedBy ?? 0,
+        isNewDuringSeason: Boolean(record?.isNewDuringSeason),
         lastCheckedAt: record?.lastCheckedAt || null,
         lastIncreasedAt: record?.lastIncreasedAt || null,
         prediction: record?.prediction || null,
