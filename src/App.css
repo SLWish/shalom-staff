@@ -1108,10 +1108,13 @@
 }
 
 .archive-card {
-  display: grid;
-  gap: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
-  padding: 13px;
+  min-height: 54px;
+  padding: 12px 13px;
   color: var(--text);
   text-align: left;
   background: #0b0f17;
@@ -1121,6 +1124,7 @@
 
 .archive-card.active {
   border-color: rgba(243, 203, 64, 0.72);
+  background: rgba(243, 203, 64, 0.08);
 }
 
 .archive-card strong {
@@ -1128,10 +1132,36 @@
   font-size: 14px;
 }
 
-.archive-card span {
+.archive-card span,
+.archive-card small {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.archive-season-list {
+  gap: 8px;
+}
+
+.archive-season-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.archive-season-main strong,
+.archive-season-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archive-fail-count {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  color: #0b0e16 !important;
+  background: var(--yellow);
+  border-radius: 999px;
 }
 
 .member-list,

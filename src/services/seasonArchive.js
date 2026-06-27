@@ -1,5 +1,5 @@
 const ARCHIVE_KEY = 'shalomInfo_seasonArchives'
-const MAX_ARCHIVE_COUNT = 5
+const MAX_ARCHIVE_COUNT = 10
 
 function toTime(value) {
   const text = String(value || '')

@@ -732,7 +732,7 @@ function AttentionPage({ archiveStatus, archives }) {
             <h2>과거 시즌 미달자 기록</h2>
           </div>
         </div>
-        <p className="page-note">최대 5시즌까지 보관하며, 현재 시즌이 아닌 저장된 과거 시즌 미달자만 보여줍니다.</p>
+        <p className="page-note">최대 10시즌까지 보관하며, 시즌 날짜를 누르면 해당 시즌 미달자 목록이 열립니다.</p>
         {archiveStatus && <p className="archive-status">{archiveStatus}</p>}
         {archives.length === 0 ? (
           <div className="empty-state compact-empty">
@@ -741,7 +741,7 @@ function AttentionPage({ archiveStatus, archives }) {
             시즌 종료 직전 자동 스냅샷 저장 후 확인할 수 있습니다.
           </div>
         ) : (
-          <div className="archive-card-list">
+          <div className="archive-card-list archive-season-list">
             {archives.map((archive) => {
               const groups = getArchiveFailureGroups(archive)
               const failedCount = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
@@ -752,8 +752,11 @@ function AttentionPage({ archiveStatus, archives }) {
                   key={archive.seasonKey}
                   onClick={() => setSelectedArchiveKey(archive.seasonKey)}
                 >
-                  <strong>{formatSeasonButtonLabel(archive)}</strong>
-                  <span>총 미달자 {failedCount}명</span>
+                  <span className="archive-season-main">
+                    <strong>{formatSeasonButtonLabel(archive)}</strong>
+                    <small>{formatDateTime(archive.savedAt)} 저장</small>
+                  </span>
+                  <span className="archive-fail-count">미달 {failedCount}명</span>
                 </button>
               )
             })}

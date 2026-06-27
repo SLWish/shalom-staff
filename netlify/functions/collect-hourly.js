@@ -5,7 +5,7 @@ import { deleteRows, insertRows, selectRows, upsertRows } from './_shared/supaba
 
 const MAX_MEMBERS = 20
 const INACTIVE_HOURS = 6
-const MAX_ARCHIVE_COUNT = 5
+const MAX_ARCHIVE_COUNT = 10
 
 function json(statusCode, body) {
   return {
