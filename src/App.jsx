@@ -108,7 +108,7 @@ function getMemberCutMeta(member, guild, cutScore) {
   const seasonDuration = seasonEndTime - seasonStartTime
   const remainingDuration = seasonEndTime - firstSeenTime
 
-  if (seasonDuration <= 0 || remainingDuration <= 0 || firstSeenTime <= seasonStartTime) {
+  if (Date.now() > seasonEndTime || seasonDuration <= 0 || remainingDuration <= 0 || firstSeenTime <= seasonStartTime) {
     return {
       effectiveCutScore: cutScore,
       isProratedCut: false,
@@ -1064,6 +1064,14 @@ function App() {
   const handleSelectPage = (pageId) => {
     setActivePage(pageId)
     setIsMenuOpen(false)
+
+    if (pageId === 'status' || pageId === 'moves') {
+      refreshGuild(selectedConfig)
+    }
+
+    if (pageId === 'new-members') {
+      guildConfigs.forEach((config) => refreshGuild(config))
+    }
   }
 
   return (
