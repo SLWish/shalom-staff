@@ -1036,10 +1036,10 @@ function App() {
 
   useEffect(() => {
     if (activePage !== 'status') return
-    guildConfigs.forEach((config) => {
-      if (!guildData[config.guildName]) refreshGuild(config)
-    })
-  }, [activePage, guildData, refreshGuild])
+    const config = guildConfigs.find((item) => item.guildName === selectedGuildName) || guildConfigs[0]
+    const timerId = window.setTimeout(() => refreshGuild(config), 0)
+    return () => window.clearTimeout(timerId)
+  }, [activePage, refreshGuild, selectedGuildName])
 
   useEffect(() => {
     if (activePage !== 'attention' && activePage !== 'new-members') return

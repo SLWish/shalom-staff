@@ -4,4 +4,4 @@
   functions = "netlify/functions"
 
 [functions."collect-hourly"]
-  schedule = "0 * * * *"
+  schedule = "*/15 * * * *"
