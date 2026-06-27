@@ -29,7 +29,7 @@ export async function handler() {
       latestMemberRows.push(...members)
     }
 
-    const archives = await selectRows('season_archives?select=*&order=saved_at.desc&limit=3')
+    const archives = await selectRows('season_archives?select=*&order=saved_at.desc&limit=5')
 
     return json(200, {
       archives: archives.map((archive) => ({

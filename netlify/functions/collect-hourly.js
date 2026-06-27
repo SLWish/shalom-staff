@@ -1,10 +1,11 @@
 /* global process */
 
 import { fetchGuildSeason, guildConfigs } from './_shared/growCastle.js'
-import { insertRows, upsertRows } from './_shared/supabaseRest.js'
+import { deleteRows, insertRows, selectRows, upsertRows } from './_shared/supabaseRest.js'
 
 const MAX_MEMBERS = 20
 const INACTIVE_HOURS = 6
+const MAX_ARCHIVE_COUNT = 5
 
 function json(statusCode, body) {
   return {
@@ -119,7 +120,6 @@ function buildSeasonArchive(guilds, capturedAt, seasonKey) {
       failedCount: failedMembers.length,
       failedMembers,
       guildName: guild.guildName,
-      members: guild.members,
       tierLabel: `${index + 1}군`,
       totalMembers: guild.members.length,
     }
@@ -144,6 +144,16 @@ function buildSeasonArchive(guilds, capturedAt, seasonKey) {
     season_start_at: seasonStartAt,
     total_failed_count: totalFailedCount,
     updated_at: capturedAt,
+  }
+}
+
+async function trimSeasonArchives() {
+  const archives = await selectRows(`season_archives?select=id&order=saved_at.desc&offset=${MAX_ARCHIVE_COUNT}`)
+  if (!archives.length) return
+
+  const ids = archives.map((archive) => archive.id).filter(Boolean)
+  if (ids.length > 0) {
+    await deleteRows(`season_archives?id=in.(${ids.join(',')})`)
   }
 }
 
@@ -184,6 +194,7 @@ export async function handler(event) {
 
     if (shouldArchiveNow(guilds, capturedAt)) {
       await upsertRows('season_archives', [buildSeasonArchive(guilds, capturedAt, seasonKey)], 'season_key')
+      await trimSeasonArchives()
     }
 
     return json(200, {

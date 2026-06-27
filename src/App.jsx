@@ -222,6 +222,21 @@ function formatShortDateTime(value) {
   })
 }
 
+function formatShortDate(value) {
+  if (!value) return '미확인'
+  return new Date(getDateTimeValue(value)).toLocaleDateString('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Seoul',
+  })
+}
+
+function formatSeasonButtonLabel(archive) {
+  const start = formatShortDate(archive?.seasonStartAt)
+  const end = formatShortDate(archive?.seasonEndAt)
+  return `${start} ~ ${end}`
+}
+
 function getCapacityStatus(memberCount) {
   const availableSlots = MAX_GUILD_MEMBERS - memberCount
   if (availableSlots > 0) return `${availableSlots}자리 남음`
@@ -380,25 +395,26 @@ function getTierLabel(index) {
   return `${index + 1}군`
 }
 
-function getSeasonFailureGroups(guildEntries) {
-  return guildEntries.map((entry, index) => {
-    const guild = entry.guild || entry
-    const cutScore = guild.cutScore
+function getArchiveFailureGroups(archive) {
+  if (!archive?.guilds) return []
+
+  return archive.guilds.map((guild, index) => {
+    const cutScore = Number(guild.cutScore) || 0
     const failedMembers = sortShortageMembers(
-      (guild.members || [])
-        .filter((member) => Number(member.score) < cutScore)
+      (guild.failedMembers || [])
         .map((member) => ({
           nickname: member.nickname,
           score: Number(member.score) || 0,
-          shortage: cutScore - (Number(member.score) || 0),
-        })),
+          shortage: Number(member.shortage) || Math.max(0, cutScore - (Number(member.score) || 0)),
+        }))
+        .filter((member) => member.nickname),
     )
 
     return {
       cutScore,
       failedMembers,
       guildName: guild.guildName,
-      tierLabel: getTierLabel(index),
+      tierLabel: guild.tierLabel || getTierLabel(index),
     }
   })
 }
@@ -702,46 +718,21 @@ function FailureGroupList({ groups }) {
 function ArchiveDetail({ archive }) {
   if (!archive) return null
 
-  const groups = archive.guilds.map((guild) => ({
-    cutScore: guild.cutScore,
-    failedMembers: guild.failedMembers || [],
-    guildName: guild.guildName,
-    tierLabel: guild.tierLabel,
-  }))
-  const summaryText = getFailureSummaryText(groups, '저장된 시즌 미달자 요약')
+  const groups = getArchiveFailureGroups(archive)
+  const summaryText = getFailureSummaryText(groups, `${formatSeasonButtonLabel(archive)} 미달자 기록`)
+  const failedCount = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
 
   return (
-    <section className="staff-section">
+    <section className="staff-section archive-history-detail">
       <div className="section-title">
-        <span>저장 기록 상세</span>
-        <h2>{formatDateTime(archive.seasonStartAt)} ~ {formatDateTime(archive.seasonEndAt)}</h2>
+        <span>과거 시즌 미달자</span>
+        <h2>{formatSeasonButtonLabel(archive)}</h2>
       </div>
-      <div className="archive-detail-grid">
-        {archive.guilds.map((guild) => (
-          <article className="archive-guild-card" key={`${archive.seasonKey}-${guild.guildName}`}>
-            <h3>
-              {guild.tierLabel} {guild.guildName} / 기준 {formatNumber(guild.cutScore)}
-            </h3>
-            <p>
-              총원 {guild.totalMembers}명 · 달성 {guild.clearedCount}명 · 미달 {guild.failedCount}명 · 달성률 {guild.clearRate}%
-            </p>
-            {guild.failedMembers.length === 0 ? (
-              <span>전원 기준 달성</span>
-            ) : (
-              <ul className="season-failure-list">
-                {guild.failedMembers.map((member) => (
-                  <li key={`${guild.guildName}-${member.nickname}`}>
-                    <strong>{member.nickname}</strong>
-                    <span>
-                      {formatNumber(member.score)}점 / {formatNumber(member.shortage)} 부족
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
-        ))}
+      <div className="season-total-card">
+        <strong>총 미달자: {failedCount}명</strong>
+        <span>저장: {formatDateTime(archive.savedAt)} · 자동 저장</span>
       </div>
+      <FailureGroupList groups={groups} />
       <div className="copy-box">
         <div className="copy-box-head">
           <strong>복붙용 요약</strong>
@@ -753,67 +744,32 @@ function ArchiveDetail({ archive }) {
   )
 }
 
-function AttentionPage({ archiveStatus, archives, guildStats, selectedGuildName }) {
+function AttentionPage({ archiveStatus, archives }) {
   const [selectedArchiveKey, setSelectedArchiveKey] = useState(null)
-  const groups = getSeasonFailureGroups(guildStats)
-  const totalFailed = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
-  const summaryText = getFailureSummaryText(groups)
-  const selectedIndex = getSelectedGuildIndex(guildStats, selectedGuildName)
-  const selectedGroup = groups[selectedIndex] || groups[0]
-  const selectedSummaryText = getFailureSummaryText([selectedGroup], `${selectedGroup.tierLabel} ${selectedGroup.guildName} 현재 시즌 미달자`)
   const selectedArchive = archives.find((archive) => archive.seasonKey === selectedArchiveKey) || archives[0] || null
 
   return (
     <PageShell eyebrow="Season Records" title="시즌 기록">
-      <section className="staff-section selected-risk-panel">
-        <div className="copy-box-head">
-          <div className="section-title">
-            <span>상단 길드 탭 선택 기준</span>
-            <h2>
-              {selectedGroup.tierLabel} {selectedGroup.guildName} 미달자
-            </h2>
-          </div>
-          <CopyButton text={selectedSummaryText} />
-        </div>
-        <FailureGroupList groups={[selectedGroup]} />
-      </section>
-      <section className="staff-section season-current-section">
-        <div className="section-title">
-          <span>현재 시즌 API 기준</span>
-          <h2>현재 시즌 미달자 요약</h2>
-        </div>
-        <div className="season-total-card">
-          <strong>총 미달자: {totalFailed}명</strong>
-          <span>{groups.map((group) => `${group.tierLabel} ${group.failedMembers.length}명`).join(' · ')}</span>
-        </div>
-        <FailureGroupList groups={groups} />
-        <div className="copy-box">
-          <div className="copy-box-head">
-            <strong>복붙용 요약</strong>
-            <CopyButton text={summaryText} />
-          </div>
-          <pre>{summaryText}</pre>
-        </div>
-      </section>
-
       <section className="staff-section">
         <div className="section-title archive-title-row">
           <div>
             <span>시즌 종료 직전 자동 저장</span>
-            <h2>저장된 시즌 기록</h2>
+            <h2>과거 시즌 미달자 기록</h2>
           </div>
         </div>
+        <p className="page-note">최대 5시즌까지 보관하며, 현재 시즌이 아닌 저장된 과거 시즌 미달자만 보여줍니다.</p>
         {archiveStatus && <p className="archive-status">{archiveStatus}</p>}
         {archives.length === 0 ? (
           <div className="empty-state compact-empty">
-            저장된 시즌 기록 없음
+            저장된 과거 시즌 기록 없음
             <br />
             시즌 종료 직전 자동 스냅샷 저장 후 확인할 수 있습니다.
           </div>
         ) : (
           <div className="archive-card-list">
             {archives.map((archive) => {
-              const failedCount = archive.guilds.reduce((sum, guild) => sum + guild.failedCount, 0)
+              const groups = getArchiveFailureGroups(archive)
+              const failedCount = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
               return (
                 <button
                   type="button"
@@ -821,9 +777,8 @@ function AttentionPage({ archiveStatus, archives, guildStats, selectedGuildName 
                   key={archive.seasonKey}
                   onClick={() => setSelectedArchiveKey(archive.seasonKey)}
                 >
-                  <strong>{formatDateTime(archive.seasonStartAt)} ~ {formatDateTime(archive.seasonEndAt)}</strong>
-                  <span>저장: {formatDateTime(archive.savedAt)}</span>
-                  <span>자동 저장 · 총 미달자 {failedCount}명</span>
+                  <strong>{formatSeasonButtonLabel(archive)}</strong>
+                  <span>총 미달자 {failedCount}명</span>
                 </button>
               )
             })}
@@ -1316,8 +1271,6 @@ function App() {
           <AttentionPage
             archiveStatus={archiveStatus}
             archives={archives}
-            guildStats={guildStats}
-            selectedGuildName={selectedGuildName}
           />
         )}
         {activePage === 'moves' && <MoveCandidatesPage selectedEntry={selectedEntry} selectedGuildName={selectedGuildName} />}

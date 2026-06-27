@@ -60,3 +60,9 @@ export function selectRows(path) {
     method: 'GET',
   })
 }
+
+export function deleteRows(path) {
+  return request(path, {
+    method: 'DELETE',
+  })
+}

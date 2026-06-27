@@ -1,5 +1,5 @@
 const ARCHIVE_KEY = 'shalomInfo_seasonArchives'
-const MAX_ARCHIVE_COUNT = 3
+const MAX_ARCHIVE_COUNT = 5
 
 function toTime(value) {
   const text = String(value || '')
@@ -70,14 +70,6 @@ export function createSeasonArchive(guilds, saveType = 'auto') {
         failedCount: failedMembers.length,
         failedMembers,
         guildName: guild.guildName,
-        members: members.map((member) => ({
-          achieved: Number(member.score) >= guild.cutScore,
-          lastRecordAt: member.lastRecordAt || member.wph?.apiDate || null,
-          nickname: member.nickname,
-          score: Number(member.score) || 0,
-          shortage: Math.max(0, guild.cutScore - (Number(member.score) || 0)),
-          wave: typeof member.wave === 'number' ? member.wave : member.wph?.wave || null,
-        })),
         tierLabel: `${index + 1}군`,
         totalMembers: members.length,
       }
