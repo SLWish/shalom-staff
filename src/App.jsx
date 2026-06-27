@@ -1230,8 +1230,12 @@ function App() {
       {isMenuOpen && <button type="button" className="drawer-backdrop" aria-label="메뉴 닫기" onClick={() => setIsMenuOpen(false)} />}
 
       <main className="main-content">
-        <GuildSelector guilds={guilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
-        <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
+        {activePage !== 'attention' && (
+          <>
+            <GuildSelector guilds={guilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
+            <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
+          </>
+        )}
 
         {activePage === 'status' && (
           <GuildStatusPage
