@@ -419,23 +419,6 @@ function getArchiveFailureGroups(archive) {
   })
 }
 
-function getFailureSummaryText(groups, title = '현재 시즌 미달자 요약') {
-  const totalFailed = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
-  const countLine = groups.map((group) => `${group.tierLabel} ${group.failedMembers.length}명`).join(' · ')
-  const groupLines = groups
-    .map((group) => {
-      const memberLines =
-        group.failedMembers.length === 0
-          ? ['전원 기준 달성']
-          : group.failedMembers.map((member) => `${member.nickname} ${formatNumber(member.score)}점 / ${formatNumber(member.shortage)} 부족`)
-
-      return [`[${group.tierLabel} ${group.guildName} / 기준 ${formatNumber(group.cutScore)}]`, ...memberLines].join('\n')
-    })
-    .join('\n\n')
-
-  return [`[${title}]`, `총 미달자: ${totalFailed}명`, countLine, '', groupLines].join('\n')
-}
-
 function getSelectedGuildEntry(guildStats, selectedGuildName) {
   return guildStats.find(({ guild }) => guild.guildName === selectedGuildName) || guildStats[0]
 }
@@ -719,7 +702,6 @@ function ArchiveDetail({ archive }) {
   if (!archive) return null
 
   const groups = getArchiveFailureGroups(archive)
-  const summaryText = getFailureSummaryText(groups, `${formatSeasonButtonLabel(archive)} 미달자 기록`)
   const failedCount = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
 
   return (
@@ -733,13 +715,6 @@ function ArchiveDetail({ archive }) {
         <span>저장: {formatDateTime(archive.savedAt)} · 자동 저장</span>
       </div>
       <FailureGroupList groups={groups} />
-      <div className="copy-box">
-        <div className="copy-box-head">
-          <strong>복붙용 요약</strong>
-          <CopyButton text={summaryText} />
-        </div>
-        <pre>{summaryText}</pre>
-      </div>
     </section>
   )
 }
