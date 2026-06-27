@@ -1,0 +1,58 @@
+export const fallbackGuilds = [
+  {
+    guildName: 'ShaLom',
+    seasonPeriod: '개발용 더미 시즌',
+    members: [
+      { nickname: 'ShaKing', score: 62400, role: 'Guild Master' },
+      { nickname: 'Lomi', score: 58350, role: 'Officer' },
+      { nickname: 'CastleRun', score: 52120, role: 'Officer' },
+      { nickname: 'GreenBolt', score: 48800, role: 'Member' },
+      { nickname: 'YellowCore', score: 43980, role: 'Member' },
+      { nickname: 'WaveMint', score: 39440, role: 'Member' },
+      { nickname: 'MoonWall', score: 29870, memo: '점수 확인 필요' },
+      { nickname: 'TinyBow', score: 28420, memo: '후반 추격 중' },
+    ],
+  },
+  {
+    guildName: 'ShaLom2',
+    seasonPeriod: '개발용 더미 시즌',
+    members: [
+      { nickname: 'SecondSun', score: 34600, role: 'Guild Master' },
+      { nickname: 'MintArrow', score: 31820, role: 'Officer' },
+      { nickname: 'CastleBee', score: 29400, role: 'Member' },
+      { nickname: 'RunePark', score: 22150, role: 'Member' },
+      { nickname: 'NoahTap', score: 18450, role: 'Member' },
+      { nickname: 'Mira', score: 15210, role: 'Member' },
+      { nickname: 'SoftWall', score: 13890, memo: '기준 근접' },
+      { nickname: 'LeafDrop', score: 11200, memo: '참여 독려' },
+    ],
+  },
+  {
+    guildName: 'ShaLom3',
+    seasonPeriod: '개발용 더미 시즌',
+    members: [
+      { nickname: 'ThirdWave', score: 24400, role: 'Guild Master' },
+      { nickname: 'HaruGC', score: 21190, role: 'Officer' },
+      { nickname: 'SolLeaf', score: 19380, role: 'Member' },
+      { nickname: 'BlueFence', score: 17100, role: 'Member' },
+      { nickname: 'TinyNova', score: 14620, role: 'Member' },
+      { nickname: 'LimeRun', score: 10100, role: 'Member' },
+      { nickname: 'StoneTap', score: 6820, memo: '소폭 미달' },
+      { nickname: 'DawnBell', score: 4640, memo: '점검 대상' },
+    ],
+  },
+  {
+    guildName: 'ShaLom4',
+    seasonPeriod: '개발용 더미 시즌',
+    members: [
+      { nickname: 'FourthStar', score: 13900, role: 'Guild Master' },
+      { nickname: 'MiniCastle', score: 12840, role: 'Officer' },
+      { nickname: 'BowMochi', score: 11030, role: 'Member' },
+      { nickname: 'LowWave', score: 8400, role: 'Member' },
+      { nickname: 'TapTap', score: 6900, role: 'Member' },
+      { nickname: 'YoungWall', score: 5200, role: 'Member' },
+      { nickname: 'NewLeaf', score: 2380, memo: '신규 길드원' },
+      { nickname: 'SmallRune', score: 1910, memo: '참여 필요' },
+    ],
+  },
+]
