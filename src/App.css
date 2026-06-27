@@ -863,111 +863,6 @@
   line-height: 1.1;
 }
 
-.notice-generator {
-  gap: 12px;
-}
-
-.risk-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.risk-overview-grid article {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.risk-overview-grid span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.risk-overview-grid strong {
-  color: var(--heading);
-  font-size: 24px;
-  line-height: 1;
-}
-
-.risk-guild-list {
-  display: grid;
-  gap: 10px;
-}
-
-.risk-guild-card {
-  display: grid;
-  gap: 10px;
-  padding: 13px;
-  background: #0b0f17;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.selected-risk-panel {
-  border-color: rgba(243, 203, 64, 0.38);
-}
-
-.risk-guild-card.selected {
-  border-color: rgba(243, 203, 64, 0.46);
-}
-
-.risk-guild-card pre {
-  margin: 0;
-  overflow-x: auto;
-  color: var(--heading);
-  font: 700 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
-  white-space: pre-wrap;
-}
-
-.risk-guild-card h3,
-.risk-guild-card p {
-  margin: 0;
-}
-
-.risk-guild-card h3 {
-  color: var(--green);
-  font-size: 16px;
-}
-
-.risk-guild-card p,
-.risk-guild-card span,
-.risk-guild-card li {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.risk-guild-card div {
-  display: grid;
-  gap: 5px;
-}
-
-.risk-guild-card div > strong {
-  color: var(--yellow);
-  font-size: 12px;
-}
-
-.risk-guild-card ul {
-  display: grid;
-  gap: 4px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.notice-generator pre {
-  margin: 0;
-  overflow-x: auto;
-  color: var(--heading);
-  font: 700 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
-  white-space: pre-wrap;
-}
-
 .season-current-section {
   gap: 16px;
 }
@@ -1652,10 +1547,6 @@ select:focus-visible {
 
   .staff-row-card {
     padding: 12px;
-  }
-
-  .risk-overview-grid {
-    grid-template-columns: 1fr;
   }
 
   .season-failure-list li {

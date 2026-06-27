@@ -237,13 +237,6 @@ function formatSeasonButtonLabel(archive) {
   return `${start} ~ ${end}`
 }
 
-function getCapacityStatus(memberCount) {
-  const availableSlots = MAX_GUILD_MEMBERS - memberCount
-  if (availableSlots > 0) return `${availableSlots}자리 남음`
-  if (availableSlots === 0) return '만원'
-  return '정원 초과'
-}
-
 function getArchiveTargetAt(seasonEndAt) {
   const seasonEndTime = getValidRecordTime(seasonEndAt)
   if (seasonEndTime === null) return null
@@ -419,76 +412,6 @@ function getArchiveFailureGroups(archive) {
   })
 }
 
-function getSelectedGuildEntry(guildStats, selectedGuildName) {
-  return guildStats.find(({ guild }) => guild.guildName === selectedGuildName) || guildStats[0]
-}
-
-function getSelectedGuildIndex(guildStats, selectedGuildName) {
-  const index = guildStats.findIndex(({ guild }) => guild.guildName === selectedGuildName)
-  return index >= 0 ? index : 0
-}
-
-function getRiskNoticeForEntry(entry, index, now) {
-  const { guild, staffData, stats } = entry
-  const seasonEndAt = guild.seasonEndAt
-  const seasonEndTime = getValidRecordTime(seasonEndAt)
-  const remainingText = seasonEndTime === null ? '확인 불가' : formatCountdown(seasonEndTime - now)
-  const shortageLines =
-    staffData.shortageMembers.length === 0
-      ? ['전원 기준 달성']
-      : staffData.shortageMembers.map((member) => `${member.nickname} ${formatNumber(member.score)}점 / ${formatNumber(member.shortage)} 부족`)
-  const inactiveLines =
-    staffData.inactiveMembers.length === 0
-      ? ['없음']
-      : staffData.inactiveMembers.map((member) => `${member.nickname} ${member.inactiveText}`)
-
-  return [
-    `[${getTierLabel(index)} ${guild.guildName} 컷 체크]`,
-    `시즌 종료까지: ${remainingText}`,
-    `기준: ${formatNumber(guild.cutScore)} / 정원 ${stats.memberCount}/${stats.maxMembers} · ${getCapacityStatus(stats.memberCount)}`,
-    '',
-    '미달자:',
-    ...shortageLines,
-    '',
-    '6시간 이상 미활동:',
-    ...inactiveLines,
-  ].join('\n')
-}
-
-function getDashboardNoticeText(guildStats, now) {
-  const seasonEndAt = getFirstSeasonEndAt(guildStats)
-  const seasonEndTime = getValidRecordTime(seasonEndAt)
-  const remainingText = seasonEndTime === null ? '확인 불가' : formatCountdown(seasonEndTime - now)
-  const cutLine = guildStats
-    .map(({ guild }, index) => `${getTierLabel(index)} ${formatNumber(guild.cutScore)}`)
-    .join(' / ')
-  const guildLines = guildStats
-    .map(({ guild, staffData, stats }, index) => {
-      const shortageLines =
-        staffData.shortageMembers.length === 0
-          ? ['전원 기준 달성']
-          : staffData.shortageMembers.map(
-              (member) => `${member.nickname} ${formatNumber(member.score)}점 / ${formatNumber(member.shortage)} 부족`,
-            )
-      const inactiveLines =
-        staffData.inactiveMembers.length === 0
-          ? ['없음']
-          : staffData.inactiveMembers.map((member) => `${member.nickname} ${member.inactiveText}`)
-
-      return [
-        `[${getTierLabel(index)} ${guild.guildName} / 기준 ${formatNumber(guild.cutScore)} / 정원 ${stats.memberCount}/${stats.maxMembers} · ${getCapacityStatus(stats.memberCount)}]`,
-        '미달자:',
-        ...shortageLines,
-        '',
-        '6시간 이상 미활동:',
-        ...inactiveLines,
-      ].join('\n')
-    })
-    .join('\n\n')
-
-  return ['[ShaLom 시즌 컷 체크]', '', `시즌 종료까지: ${remainingText}`, `기준: ${cutLine}`, '', guildLines].join('\n')
-}
-
 function StaffNotice() {
   return (
     <section className="defeat-notice">
@@ -521,111 +444,6 @@ function SeasonCountdownCard({ now, seasonEndAt }) {
   )
 }
 
-function StaffNoticeBox({ guildStats, now, selectedGuildName }) {
-  const noticeText = getDashboardNoticeText(guildStats, now)
-  const selectedEntry = getSelectedGuildEntry(guildStats, selectedGuildName)
-  const selectedIndex = getSelectedGuildIndex(guildStats, selectedGuildName)
-  const selectedNoticeText = getRiskNoticeForEntry(selectedEntry, selectedIndex, now)
-  const totalShortage = guildStats.reduce((sum, entry) => sum + entry.staffData.shortageMembers.length, 0)
-  const totalInactive = guildStats.reduce((sum, entry) => sum + entry.staffData.inactiveMembers.length, 0)
-  const totalMoveCandidates = guildStats.reduce((sum, entry) => sum + entry.staffData.moveCandidates.length, 0)
-  const { guild: selectedGuild, staffData: selectedStaffData, stats: selectedStats } = selectedEntry
-
-  return (
-    <PageShell eyebrow="Staff Notice" title="위험도 요약">
-      <section className="risk-overview-grid">
-        <article>
-          <span>컷 미달</span>
-          <strong>{totalShortage}명</strong>
-        </article>
-        <article>
-          <span>6시간 미활동</span>
-          <strong>{totalInactive}명</strong>
-        </article>
-        <article>
-          <span>이동 후보</span>
-          <strong>{totalMoveCandidates}명</strong>
-        </article>
-      </section>
-      <section className="staff-section selected-risk-panel">
-        <div className="copy-box-head">
-          <div className="section-title">
-            <span>상단 길드 탭 선택 기준</span>
-            <h2>
-              {getTierLabel(selectedIndex)} {selectedGuild.guildName} 요약
-            </h2>
-          </div>
-          <CopyButton text={selectedNoticeText} />
-        </div>
-        <div className="risk-guild-card selected">
-          <p>
-            기준 {formatNumber(selectedGuild.cutScore)} · 정원 {selectedStats.memberCount}/{selectedStats.maxMembers} · 미달{' '}
-            {selectedStaffData.shortageMembers.length}명 · 미활동 {selectedStaffData.inactiveMembers.length}명
-          </p>
-          <pre>{selectedNoticeText}</pre>
-        </div>
-      </section>
-      <section className="staff-section notice-generator">
-        <div className="section-title">
-          <span>길드별 확인 대상</span>
-          <h2>길드별 위험도</h2>
-        </div>
-        <div className="risk-guild-list">
-          {guildStats.map(({ guild, staffData, stats }, index) => (
-            <article className="risk-guild-card" key={guild.guildName}>
-              <h3>
-                {getTierLabel(index)} {guild.guildName}
-              </h3>
-              <p>
-                기준 {formatNumber(guild.cutScore)} · 정원 {stats.memberCount}/{stats.maxMembers} · 미달 {staffData.shortageMembers.length}명 · 미활동{' '}
-                {staffData.inactiveMembers.length}명
-              </p>
-              <div>
-                <strong>미달자</strong>
-                {staffData.shortageMembers.length === 0 ? (
-                  <span>전원 기준 달성</span>
-                ) : (
-                  <ul>
-                    {staffData.shortageMembers.map((member) => (
-                      <li key={`${guild.guildName}-short-${member.nickname}`}>
-                        {member.nickname} {formatNumber(member.score)}점 / {formatNumber(member.shortage)} 부족
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div>
-                <strong>6시간 이상 미활동</strong>
-                {staffData.inactiveMembers.length === 0 ? (
-                  <span>없음</span>
-                ) : (
-                  <ul>
-                    {staffData.inactiveMembers.map((member) => (
-                      <li key={`${guild.guildName}-inactive-${member.nickname}`}>
-                        {member.nickname} {member.inactiveText}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-      <section className="staff-section notice-generator">
-      <div className="copy-box-head">
-        <div className="section-title">
-          <span>4개 길드 전체 기준</span>
-          <h2>복붙용 공지</h2>
-        </div>
-        <CopyButton text={noticeText} />
-      </div>
-      <pre>{noticeText}</pre>
-      </section>
-    </PageShell>
-  )
-}
-
 function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName }) {
   const isLoading = selectedEntry.guild.apiState?.status === 'loading'
   const seasonEndAt = getFirstSeasonEndAt(guildStats)
@@ -643,30 +461,6 @@ function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName }) 
       <p className="selected-debug">현재 선택 길드: {selectedGuildName}</p>
       <StaffNotice />
     </PageShell>
-  )
-}
-
-function CopyButton({ text }) {
-  const [copyStatus, setCopyStatus] = useState('')
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopyStatus('복사 완료')
-      window.setTimeout(() => setCopyStatus(''), 1800)
-    } catch {
-      setCopyStatus('복사 실패')
-      window.setTimeout(() => setCopyStatus(''), 1800)
-    }
-  }
-
-  return (
-    <div className="copy-actions">
-      <button type="button" onClick={handleCopy}>
-        복사
-      </button>
-      {copyStatus && <span>{copyStatus}</span>}
-    </div>
   )
 }
 
@@ -1155,7 +949,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (activePage !== 'status' && activePage !== 'risk') return
+    if (activePage !== 'status') return
     guildConfigs.forEach((config) => {
       if (!guildData[config.guildName]) refreshGuild(config)
     })
@@ -1248,7 +1042,6 @@ function App() {
             selectedGuildName={selectedGuildName}
           />
         )}
-        {activePage === 'risk' && <StaffNoticeBox guildStats={guildStats} now={clockNow} selectedGuildName={selectedGuildName} />}
         {activePage === 'attention' && (
           <AttentionPage
             archiveStatus={archiveStatus}

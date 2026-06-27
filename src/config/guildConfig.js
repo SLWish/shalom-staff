@@ -27,7 +27,6 @@ export const guildConfigs = [
 
 export const menuItems = [
   { id: 'status', label: '길드 현황', icon: 'status' },
-  { id: 'risk', label: '위험도 요약', icon: 'alert' },
   { id: 'attention', label: '시즌 기록', icon: 'alert' },
   { id: 'moves', label: '이동 후보', icon: 'move' },
   { id: 'settings', label: '설정', icon: 'settings' },
