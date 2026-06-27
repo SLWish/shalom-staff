@@ -25,6 +25,7 @@ const INACTIVE_HOURS_THRESHOLD = 6
 const GUILD_ORDER = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const MAX_GUILD_MEMBERS = 20
 const SHOW_PROJECTION_DEBUG = false
+const GUILD_NICKNAME_PATTERN = /^SL_/i
 
 function createDefaultCutScores() {
   return Object.fromEntries(guildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
@@ -92,6 +93,51 @@ function getValidRecordTime(apiDate) {
   return Number.isFinite(time) ? time : null
 }
 
+function getSeasonStartTime(guild) {
+  const apiStartTime = getValidRecordTime(guild.seasonStartAt)
+  if (apiStartTime !== null) return apiStartTime
+
+  const parsedStart = parseSeasonStart(guild.seasonPeriod)
+  return parsedStart ? parsedStart.getTime() : null
+}
+
+function getMemberCutMeta(member, guild, cutScore) {
+  const seasonStartTime = getSeasonStartTime(guild)
+  const seasonEndTime = getValidRecordTime(guild.seasonEndAt)
+  const firstSeenTime = getValidRecordTime(member.history?.firstSeenAt)
+
+  if (seasonStartTime === null || seasonEndTime === null || firstSeenTime === null) {
+    return {
+      effectiveCutScore: cutScore,
+      isProratedCut: false,
+      joinedDuringSeasonAt: null,
+    }
+  }
+
+  const seasonDuration = seasonEndTime - seasonStartTime
+  const remainingDuration = seasonEndTime - firstSeenTime
+
+  if (seasonDuration <= 0 || remainingDuration <= 0 || firstSeenTime <= seasonStartTime) {
+    return {
+      effectiveCutScore: cutScore,
+      isProratedCut: false,
+      joinedDuringSeasonAt: null,
+    }
+  }
+
+  const effectiveCutScore = Math.max(0, Math.ceil(cutScore * (remainingDuration / seasonDuration)))
+
+  return {
+    effectiveCutScore: Math.min(cutScore, effectiveCutScore),
+    isProratedCut: effectiveCutScore < cutScore,
+    joinedDuringSeasonAt: member.history?.firstSeenAt || null,
+  }
+}
+
+function hasValidGuildNickname(nickname) {
+  return GUILD_NICKNAME_PATTERN.test(String(nickname || ''))
+}
+
 function getDiffHoursFromApiDate(apiDate) {
   const recordTime = getValidRecordTime(apiDate)
   if (recordTime === null) return null
@@ -147,9 +193,10 @@ function getActivityMeta(member, seasonStart) {
 
 function getStaffStatus(member, cutScore, seasonStart) {
   const activity = getActivityMeta(member, seasonStart)
+  const targetCutScore = member.effectiveCutScore ?? cutScore
   if (activity.activityStatus === '기록 확인 불가') return '기록 확인 불가'
   if (activity.seasonNotJoined) return '시즌 미참여'
-  if (member.score < cutScore) return '컷 미달'
+  if (member.score < targetCutScore) return '컷 미달'
   if (activity.inactiveOverSixHours) return '미활동'
   return '확인 완료'
 }
@@ -328,10 +375,10 @@ function getGuildStaffData(guild, cutScores) {
   const seasonStart = parseSeasonStart(guild.seasonPeriod)
   const shortageMembers = sortShortageMembers(
     guild.members
-      .filter((member) => member.score < guild.cutScore)
+      .filter((member) => member.score < (member.effectiveCutScore ?? guild.cutScore))
       .map((member) => ({
         ...member,
-        shortage: guild.cutScore - member.score,
+        shortage: (member.effectiveCutScore ?? guild.cutScore) - member.score,
         lastRecord: member.wph?.apiDate || null,
       })),
   )
@@ -353,6 +400,7 @@ function getGuildStaffData(guild, cutScores) {
   return {
     inactiveMembers: sortInactiveMembers(activityMembers.filter((member) => member.diffHours !== null && member.diffHours >= INACTIVE_HOURS_THRESHOLD)),
     moveCandidates: getMoveCandidatesForGuild(guild, cutScores),
+    nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
     seasonNotJoinedMembers: sortInactiveMembers(activityMembers.filter((member) => member.seasonNotJoined)),
     shortageMembers,
     unverifiedMembers: sortByScore(activityMembers.filter((member) => member.diffHours === null)),
@@ -362,7 +410,7 @@ function getGuildStaffData(guild, cutScores) {
 function getGuildStats(guild, staffData) {
   const totalScore = guild.members.reduce((sum, member) => sum + member.score, 0)
   const memberCount = guild.members.length
-  const achievedCount = guild.members.filter((member) => member.score >= guild.cutScore).length
+  const achievedCount = guild.members.filter((member) => member.score >= (member.effectiveCutScore ?? guild.cutScore)).length
   return {
     achievementRate: memberCount > 0 ? Math.round((achievedCount / memberCount) * 100) : 0,
     achievedCount,
@@ -373,6 +421,7 @@ function getGuildStats(guild, staffData) {
     maxMembers: MAX_GUILD_MEMBERS,
     memberCount,
     moveCandidateCount: staffData.moveCandidates.length,
+    nicknameWarningCount: staffData.nicknameWarningMembers.length,
     seasonNotJoinedCount: staffData.seasonNotJoinedMembers.length,
     totalScore,
     unverifiedCount: staffData.unverifiedMembers.length,
@@ -742,12 +791,15 @@ function App() {
                   wph: null,
                   wphStatus: '기록 확인 불가',
                 }
+                const cutMeta = getMemberCutMeta(member, data, cutScore)
 
                 return {
                   ...member,
+                  ...cutMeta,
                   lastRecordDate: wph.apiDate,
+                  nicknameFormatOk: hasValidGuildNickname(member.nickname),
                   wph,
-                  staffStatus: getStaffStatus({ ...member, wph }, cutScore, seasonStart),
+                  staffStatus: getStaffStatus({ ...member, ...cutMeta, wph }, cutScore, seasonStart),
                 }
               })
             : [],
