@@ -159,8 +159,17 @@ function GuildLeaderBadge({ member }) {
 function getAltAccountKey(nickname) {
   return String(nickname || '')
     .trim()
-    .replace(/^[sS5][lL]_/, '')
+    .normalize('NFKC')
+    .replace(/^[sS5][lL][\s_.-]*/, '')
+    .replace(/[\s_.-]/g, '')
     .toLowerCase()
+}
+
+function getAltAccountDisplayName(nickname) {
+  return String(nickname || '')
+    .trim()
+    .normalize('NFKC')
+    .replace(/^[sS5][lL][\s_.-]*/, '')
 }
 
 function getAltAccountGroups(members) {
@@ -170,7 +179,7 @@ function getAltAccountGroups(members) {
     if (!key) return groups
 
     const nextGroup = groups.get(key) || {
-      displayName: String(member.nickname || '').trim().replace(/^[sS5][lL]_/, ''),
+      displayName: getAltAccountDisplayName(member.nickname),
       key,
       members: [],
     }
@@ -198,6 +207,7 @@ function getAltAccountMeta(groups) {
     const mainMember = group.members[0]
     group.members.forEach((member) => {
       meta.set(`${member.guildName}:${member.nickname}`, {
+        isMain: member === mainMember,
         label: member === mainMember ? '본계정' : '부계정',
         mainNickname: mainMember.nickname,
       })
@@ -208,7 +218,7 @@ function getAltAccountMeta(groups) {
 
 function AccountRelationBadge({ meta }) {
   if (!meta) return null
-  return <span className={meta.label === '본계정' ? 'role-badge account-main-badge' : 'role-badge account-alt-badge'}>{meta.label}</span>
+  return <span className={meta.isMain ? 'role-badge account-main-badge' : 'role-badge account-alt-badge'}>{meta.label}</span>
 }
 
 function getDiffHoursFromApiDate(apiDate) {
@@ -791,6 +801,52 @@ function MembersPage({ guilds }) {
           </ul>
         </section>
       )}
+
+      <section className="staff-section">
+        <div className="section-title">
+          <span>{'SL / sL / 5L \uC811\uB450\uC5B4 \uC81C\uC678 \uD6C4 \uBE44\uAD50'}</span>
+          <h2>{'\uBCF8\uACC4\uC815 / \uBD80\uACC4\uC815 \uC815\uB9AC'}</h2>
+        </div>
+        {altAccountGroups.length === 0 ? (
+          <EmptyState>{'\uC77C\uCE58\uD558\uB294 \uB2C9\uB124\uC784 \uC5C6\uC74C'}</EmptyState>
+        ) : (
+          <div className="staff-card-list compact-list">
+            {altAccountGroups.map((group) => {
+              const mainMember = group.members[0]
+              const subMembers = group.members.slice(1)
+
+              return (
+                <article className="staff-row-card account-group-card" key={`account-group-${group.key}`}>
+                  <div className="member-title-row">
+                    <strong>{group.displayName}</strong>
+                    <span className="status-badge">{group.members.length}{'\uACC4\uC815'}</span>
+                  </div>
+                  <ul className="member-name-list">
+                    <li>
+                      <span className="member-name-main">
+                        <strong>{mainMember.nickname}</strong>
+                        <AccountRelationBadge meta={{ isMain: true, label: '\uBCF8\uACC4\uC815' }} />
+                        <GuildLeaderBadge member={mainMember} />
+                      </span>
+                      <span>{mainMember.guildName} / {formatNumber(mainMember.score)}{'\uC810'}</span>
+                    </li>
+                    {subMembers.map((member) => (
+                      <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${member.guildName}-${member.nickname}-sub`}>
+                        <span className="member-name-main">
+                          <strong>{member.nickname}</strong>
+                          <AccountRelationBadge meta={{ isMain: false, label: '\uBD80\uACC4\uC815' }} />
+                          <GuildLeaderBadge member={member} />
+                        </span>
+                        <span>{member.guildName} / {formatNumber(member.score)}{'\uC810'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       <StaffNotice />
     </PageShell>
