@@ -99,9 +99,10 @@ function buildRows(guilds, capturedAt) {
 }
 
 function buildSeasonArchive(guilds, capturedAt, seasonKey) {
-  const seasonStartAt = guilds.find((guild) => guild.seasonStartAt)?.seasonStartAt || null
-  const seasonEndAt = guilds.find((guild) => guild.seasonEndAt)?.seasonEndAt || null
-  const archiveGuilds = guilds.map((guild, index) => {
+  const activeGuilds = guilds.filter((guild) => guild.type !== 'rest')
+  const seasonStartAt = activeGuilds.find((guild) => guild.seasonStartAt)?.seasonStartAt || null
+  const seasonEndAt = activeGuilds.find((guild) => guild.seasonEndAt)?.seasonEndAt || null
+  const archiveGuilds = activeGuilds.map((guild, index) => {
     const failedMembers = (guild.members || [])
       .filter((member) => Number(member.score) < guild.cutScore)
       .map((member) => ({

@@ -6,7 +6,7 @@ import GuildSelector from './components/GuildSelector.jsx'
 import GuildSummaryCard from './components/GuildSummaryCard.jsx'
 import MenuDrawer from './components/MenuDrawer.jsx'
 import PageShell from './components/PageShell.jsx'
-import { guildConfigs, menuItems } from './config/guildConfig.js'
+import { activeGuildConfigs, guildConfigs, menuItems } from './config/guildConfig.js'
 import { fallbackGuilds } from './data/fallbackGuilds.js'
 import { fetchGuildSeason, fetchPlayerSeason } from './services/growCastleApi.js'
 import {
@@ -25,7 +25,7 @@ const SHOW_PROJECTION_DEBUG = false
 const GUILD_NICKNAME_PATTERN = /^SL_/i
 
 function createDefaultCutScores() {
-  return Object.fromEntries(guildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
+  return Object.fromEntries(activeGuildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
 }
 
 function getFallbackGuild(config, cutScore) {
@@ -36,6 +36,7 @@ function getFallbackGuild(config, cutScore) {
     seasonPeriod: fallback?.seasonPeriod || '현재 시즌',
     cutScore,
     members: fallback?.members || [],
+    type: config.type,
   }
 }
 
@@ -598,6 +599,90 @@ function NewMembersPage({ guildStats }) {
   )
 }
 
+function MembersPage({ guilds }) {
+  const activeGuilds = guilds.filter((guild) => guild.type === 'active')
+  const restGuilds = guilds.filter((guild) => guild.type === 'rest')
+  const allMembers = guilds.flatMap((guild) => guild.members.map((member) => ({ ...member, guildName: guild.guildName })))
+  const nicknameWarnings = allMembers.filter((member) => !hasValidGuildNickname(member.nickname))
+  const totalActive = activeGuilds.reduce((sum, guild) => sum + guild.members.length, 0)
+  const totalRest = restGuilds.reduce((sum, guild) => sum + guild.members.length, 0)
+
+  const renderGuildCard = (guild, index, labelPrefix) => (
+    <section className="staff-section" key={`${guild.guildName}-member-list`}>
+      <div className="section-title">
+        <span>{labelPrefix} {index + 1}</span>
+        <h2>
+          {guild.guildName} · {guild.members.length}명
+        </h2>
+      </div>
+      {guild.apiState?.status === 'loading' ? (
+        <LoadingState guildName={guild.guildName} />
+      ) : guild.members.length === 0 ? (
+        <EmptyState>길드원 데이터 없음</EmptyState>
+      ) : (
+        <ul className="member-name-list">
+          {sortByScore(guild.members).map((member) => (
+            <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${guild.guildName}-${member.nickname}`}>
+              <strong>{member.nickname}</strong>
+              <span>{formatNumber(member.score)}점</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+
+  return (
+    <PageShell eyebrow="Members" title="전체 인원">
+      <section className="staff-section">
+        <div className="section-title">
+          <span>활동 4개 + 휴식 2개</span>
+          <h2>전체 {allMembers.length}명</h2>
+        </div>
+        <div className="season-total-card">
+          <strong>활동 {totalActive}명 · 휴식 {totalRest}명</strong>
+          <span>닉네임 양식 확인 {nicknameWarnings.length}명</span>
+        </div>
+      </section>
+
+      <section className="staff-section">
+        <div className="section-title">
+          <span>컷 체크 대상</span>
+          <h2>활동 길드</h2>
+        </div>
+      </section>
+      {activeGuilds.map((guild, index) => renderGuildCard(guild, index, '활동'))}
+
+      <section className="staff-section">
+        <div className="section-title">
+          <span>컷 제외 / 소속 확인용</span>
+          <h2>휴식 길드</h2>
+        </div>
+      </section>
+      {restGuilds.map((guild, index) => renderGuildCard(guild, index, '휴식'))}
+
+      {nicknameWarnings.length > 0 && (
+        <section className="staff-section">
+          <div className="section-title">
+            <span>SL_ 양식 미일치</span>
+            <h2>닉네임 확인</h2>
+          </div>
+          <ul className="member-name-list">
+            {nicknameWarnings.map((member) => (
+              <li className="needs-check" key={`${member.guildName}-${member.nickname}-warning`}>
+                <strong>{member.nickname}</strong>
+                <span>{member.guildName}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <StaffNotice />
+    </PageShell>
+  )
+}
+
 function FailureGroupList({ groups }) {
   return (
     <div className="season-record-groups">
@@ -792,7 +877,7 @@ function App() {
   )
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [lastRefreshedAtByGuild, setLastRefreshedAtByGuild] = useState({})
-  const [selectedGuildName, setSelectedGuildName] = useState(guildConfigs[0].guildName)
+  const [selectedGuildName, setSelectedGuildName] = useState(activeGuildConfigs[0].guildName)
   const [wphRecordsByGuild, setWphRecordsByGuild] = useState(() =>
     Object.fromEntries(guildConfigs.map((config) => [config.guildName, getLatestWphRecords(config.guildName)])),
   )
@@ -814,6 +899,7 @@ function App() {
           apiState: apiStates[config.guildName] || { status: 'idle' },
           cutScore,
           defaultCutScore: config.defaultCutScore,
+          type: config.type,
           hasApiData,
           lastRefreshedAt: lastRefreshedAtByGuild[config.guildName] || null,
           members: hasApiData
@@ -866,10 +952,13 @@ function App() {
     [guilds, staffByGuild],
   )
 
-  const selectedConfig = guildConfigs.find((config) => config.guildName === selectedGuildName) || guildConfigs[0]
+  const activeGuilds = useMemo(() => guilds.filter((guild) => guild.type === 'active'), [guilds])
+  const activeGuildStats = useMemo(() => guildStats.filter(({ guild }) => guild.type === 'active'), [guildStats])
+
+  const selectedConfig = activeGuildConfigs.find((config) => config.guildName === selectedGuildName) || activeGuildConfigs[0]
   const selectedEntry =
-    guildStats.find(({ guild }) => guild.guildName === selectedGuildName) ||
-    guildStats.find(({ guild }) => guild.guildName === selectedConfig.guildName)
+    activeGuildStats.find(({ guild }) => guild.guildName === selectedGuildName) ||
+    activeGuildStats.find(({ guild }) => guild.guildName === selectedConfig.guildName)
 
   const updateApiState = useCallback((guildName, nextState) => {
     setApiStates((current) => ({ ...current, [guildName]: nextState }))
@@ -977,9 +1066,9 @@ function App() {
       setArchiveStatus('자동 시즌 기록 저장 중...')
 
       try {
-        const settled = await Promise.allSettled(guildConfigs.map((config) => refreshGuild(config)))
+        const settled = await Promise.allSettled(activeGuildConfigs.map((config) => refreshGuild(config)))
         const archiveGuilds = settled.map((result, index) => {
-          const config = guildConfigs[index]
+          const config = activeGuildConfigs[index]
           const cutScore = cutScores[config.guildName] ?? config.defaultCutScore
 
           if (result.status === 'fulfilled' && result.value) {
@@ -1014,7 +1103,7 @@ function App() {
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
-      refreshGuild(guildConfigs[0])
+      refreshGuild(activeGuildConfigs[0])
     }, 0)
     return () => window.clearTimeout(timerId)
   }, [refreshGuild])
@@ -1036,13 +1125,20 @@ function App() {
 
   useEffect(() => {
     if (activePage !== 'status') return
-    const config = guildConfigs.find((item) => item.guildName === selectedGuildName) || guildConfigs[0]
+    const config = activeGuildConfigs.find((item) => item.guildName === selectedGuildName) || activeGuildConfigs[0]
     const timerId = window.setTimeout(() => refreshGuild(config), 0)
     return () => window.clearTimeout(timerId)
   }, [activePage, refreshGuild, selectedGuildName])
 
   useEffect(() => {
     if (activePage !== 'attention' && activePage !== 'new-members') return
+    activeGuildConfigs.forEach((config) => {
+      if (!guildData[config.guildName]) refreshGuild(config)
+    })
+  }, [activePage, guildData, refreshGuild])
+
+  useEffect(() => {
+    if (activePage !== 'members') return
     guildConfigs.forEach((config) => {
       if (!guildData[config.guildName]) refreshGuild(config)
     })
@@ -1057,7 +1153,7 @@ function App() {
 
   const handleGuildChange = (guildName) => {
     setSelectedGuildName(guildName)
-    const nextConfig = guildConfigs.find((config) => config.guildName === guildName)
+    const nextConfig = activeGuildConfigs.find((config) => config.guildName === guildName)
     if (nextConfig) refreshGuild(nextConfig)
   }
 
@@ -1070,6 +1166,10 @@ function App() {
     }
 
     if (pageId === 'new-members') {
+      activeGuildConfigs.forEach((config) => refreshGuild(config))
+    }
+
+    if (pageId === 'members') {
       guildConfigs.forEach((config) => refreshGuild(config))
     }
   }
@@ -1081,22 +1181,23 @@ function App() {
       {isMenuOpen && <button type="button" className="drawer-backdrop" aria-label="메뉴 닫기" onClick={() => setIsMenuOpen(false)} />}
 
       <main className="main-content">
-        {activePage !== 'attention' && activePage !== 'new-members' && (
+        {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && (
           <>
-            <GuildSelector guilds={guilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
+            <GuildSelector guilds={activeGuilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
             <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
           </>
         )}
 
         {activePage === 'status' && (
           <GuildStatusPage
-            guildStats={guildStats}
+            guildStats={activeGuildStats}
             now={clockNow}
             selectedEntry={selectedEntry}
             selectedGuildName={selectedGuildName}
           />
         )}
-        {activePage === 'new-members' && <NewMembersPage guildStats={guildStats} />}
+        {activePage === 'new-members' && <NewMembersPage guildStats={activeGuildStats} />}
+        {activePage === 'members' && <MembersPage guilds={guilds} />}
         {activePage === 'attention' && (
           <AttentionPage
             archiveStatus={archiveStatus}

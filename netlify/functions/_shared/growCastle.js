@@ -6,24 +6,42 @@ export const guildConfigs = [
     apiUrl: 'https://raongames.com/growcastle/restapi/season/now/guilds/ShaLom',
     cutScore: 40000,
     order: 1,
+    type: 'active',
   },
   {
     guildName: 'ShaLom2',
     apiUrl: 'https://raongames.com/growcastle/restapi/season/now/guilds/ShaLom2',
     cutScore: 15000,
     order: 2,
+    type: 'active',
   },
   {
     guildName: 'ShaLom3',
     apiUrl: 'https://raongames.com/growcastle/restapi/season/now/guilds/ShaLom3',
     cutScore: 7000,
     order: 3,
+    type: 'active',
   },
   {
     guildName: 'ShaLom4',
     apiUrl: 'https://raongames.com/growcastle/restapi/season/now/guilds/ShaLom4',
     cutScore: 3000,
     order: 4,
+    type: 'active',
+  },
+  {
+    guildName: 'ShaLom5',
+    apiUrl: 'https://raongames.com/growcastle/restapi/season/now/guilds/ShaLom5',
+    cutScore: 0,
+    order: 5,
+    type: 'rest',
+  },
+  {
+    guildName: 'ShaLom6',
+    apiUrl: 'https://raongames.com/growcastle/restapi/season/now/guilds/ShaLom6',
+    cutScore: 0,
+    order: 6,
+    type: 'rest',
   },
 ]
 
@@ -143,5 +161,6 @@ export async function fetchGuildSeason(config) {
     }),
     seasonEndAt: getSeasonDate(payload, 'end'),
     seasonStartAt: getSeasonDate(payload, 'start'),
+    type: config.type,
   }
 }

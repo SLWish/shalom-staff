@@ -952,6 +952,46 @@
   white-space: nowrap;
 }
 
+.member-name-list {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.member-name-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #080c14;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.member-name-list li.needs-check {
+  border-color: rgba(243, 203, 64, 0.45);
+}
+
+.member-name-list strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--heading);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-name-list span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .copy-box {
   display: grid;
   gap: 10px;
