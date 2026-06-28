@@ -237,23 +237,6 @@ function getAltAccountGroups(members) {
     .sort((a, b) => b.members.length - a.members.length || a.displayName.localeCompare(b.displayName))
 }
 
-function getAltAccountMeta(groups) {
-  return groups.reduce((meta, group) => {
-    const mainMember =
-      group.members.find(
-        (member) => normalizeManualAccountNickname(member.nickname) === normalizeManualAccountNickname(group.manualMainNickname),
-      ) || group.members[0]
-    group.members.forEach((member) => {
-      meta.set(`${member.guildName}:${member.nickname}`, {
-        isMain: member === mainMember,
-        label: member === mainMember ? '본계정' : '부계정',
-        mainNickname: mainMember.nickname,
-      })
-    })
-    return meta
-  }, new Map())
-}
-
 function AccountRelationBadge({ meta }) {
   if (!meta) return null
   return <span className={meta.isMain ? 'role-badge account-main-badge' : 'role-badge account-alt-badge'}>{meta.label}</span>
@@ -748,7 +731,6 @@ function MembersPage({ guilds }) {
   const allMembers = guilds.flatMap((guild) => guild.members.map((member) => ({ ...member, guildName: guild.guildName })))
   const nicknameWarnings = allMembers.filter((member) => !hasValidGuildNickname(member.nickname))
   const altAccountGroups = getAltAccountGroups(allMembers)
-  const altAccountMeta = getAltAccountMeta(altAccountGroups)
   const filterMembers = (members) =>
     normalizedSearch
       ? members.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch))
@@ -782,7 +764,6 @@ function MembersPage({ guilds }) {
                 <strong>{member.nickname}</strong>
                 <StoppedFiveMinuteDot member={member} />
                 <GuildLeaderBadge member={member} />
-                <AccountRelationBadge meta={altAccountMeta.get(`${guild.guildName}:${member.nickname}`)} />
               </span>
               <span>{formatNumber(member.score)}점</span>
             </li>
@@ -805,6 +786,10 @@ function MembersPage({ guilds }) {
         <div className="season-total-card">
           <strong>활동 {totalActive}명 · 휴식 {totalRest}명</strong>
           <span>닉네임 양식 확인 {nicknameWarnings.length}명 · 표시 {matchedCount}명</span>
+        </div>
+        <div className="member-legend">
+          <span className="stopped-dot" aria-hidden="true" />
+          <span>Red dot = 5min+ Defeat</span>
         </div>
         <label className="member-search-box">
           <span>닉네임 검색</span>
