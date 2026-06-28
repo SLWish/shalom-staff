@@ -969,6 +969,7 @@
 .member-legend {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   width: fit-content;
   padding: 8px 10px;
@@ -1052,6 +1053,22 @@
   border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
   box-shadow: 0 0 0 2px rgba(239, 59, 77, 0.16);
+}
+
+.crown-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  background: var(--yellow);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(243, 203, 64, 0.16);
 }
 
 .member-name-main .role-badge,

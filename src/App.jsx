@@ -24,6 +24,7 @@ const MAX_GUILD_MEMBERS = 20
 const SHOW_PROJECTION_DEBUG = false
 const GUILD_NICKNAME_PATTERN = /^SL_/
 const INVALID_GUILD_NICKNAME_PATTERN = /^5L_/i
+const MANUAL_LEADER_STORAGE_KEY = 'shalomInfo_manualGuildLeaders'
 
 function createDefaultCutScores() {
   return Object.fromEntries(activeGuildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
@@ -154,6 +155,41 @@ function hasValidGuildNickname(nickname) {
 function GuildLeaderBadge({ member }) {
   if (!member?.isGuildLeader) return null
   return <span className="role-badge">길드장</span>
+}
+
+
+function CrownBadge({ active }) {
+  if (!active) return null
+  return <span className="crown-badge" title="Guild staff" aria-label="Guild staff">{'\u265B'}</span>
+}
+
+function getManualLeaderKey(guildName, nickname) {
+  return `${guildName}:${nickname}`
+}
+
+function readManualLeaderKeys() {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(MANUAL_LEADER_STORAGE_KEY) || '[]')
+    if (!Array.isArray(parsed)) return []
+
+    const byGuild = new Map()
+    parsed
+      .filter((key) => typeof key === 'string' && key.includes(':'))
+      .forEach((key) => {
+        const [guildName] = key.split(':')
+        byGuild.set(guildName, key)
+      })
+    return [...byGuild.values()]
+  } catch {
+    return []
+  }
+}
+
+function saveManualLeaderKeys(keys) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(MANUAL_LEADER_STORAGE_KEY, JSON.stringify(keys))
 }
 
 const MANUAL_ALT_ACCOUNT_GROUPS = [
@@ -725,6 +761,8 @@ function NewMembersPage({ guildStats }) {
 
 function MembersPage({ guilds }) {
   const [searchText, setSearchText] = useState('')
+  const [manualLeaderKeys, setManualLeaderKeys] = useState(readManualLeaderKeys)
+  const longPressTimersRef = useRef(new Map())
   const normalizedSearch = searchText.trim().toLowerCase()
   const activeGuilds = guilds.filter((guild) => guild.type === 'active')
   const restGuilds = guilds.filter((guild) => guild.type === 'rest')
@@ -738,6 +776,55 @@ function MembersPage({ guilds }) {
   const matchedCount = normalizedSearch ? allMembers.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch)).length : allMembers.length
   const totalActive = activeGuilds.reduce((sum, guild) => sum + guild.members.length, 0)
   const totalRest = restGuilds.reduce((sum, guild) => sum + guild.members.length, 0)
+  const manualLeaderKeySet = useMemo(() => new Set(manualLeaderKeys), [manualLeaderKeys])
+
+  const toggleManualLeader = useCallback((key) => {
+    setManualLeaderKeys((current) => {
+      const [guildName] = key.split(':')
+      const nextSet = new Set(current.filter((currentKey) => !currentKey.startsWith(`${guildName}:`)))
+      if (!current.includes(key)) nextSet.add(key)
+
+      const next = [...nextSet]
+      saveManualLeaderKeys(next)
+      return next
+    })
+  }, [])
+
+  const clearLongPress = useCallback((key) => {
+    const timer = longPressTimersRef.current.get(key)
+    if (timer) window.clearTimeout(timer)
+    longPressTimersRef.current.delete(key)
+  }, [])
+
+  const startLongPress = useCallback(
+    (key) => {
+      clearLongPress(key)
+      const timer = window.setTimeout(() => {
+        toggleManualLeader(key)
+        longPressTimersRef.current.delete(key)
+      }, 650)
+      longPressTimersRef.current.set(key, timer)
+    },
+    [clearLongPress, toggleManualLeader],
+  )
+
+  useEffect(
+    () => () => {
+      longPressTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+      longPressTimersRef.current.clear()
+    },
+    [],
+  )
+
+  const sortMembersForDisplay = useCallback(
+    (members, guildName) =>
+      sortByScore(members).sort((a, b) => {
+        const aIsManualLeader = manualLeaderKeySet.has(getManualLeaderKey(guildName, a.nickname))
+        const bIsManualLeader = manualLeaderKeySet.has(getManualLeaderKey(guildName, b.nickname))
+        return Number(bIsManualLeader) - Number(aIsManualLeader)
+      }),
+    [manualLeaderKeySet],
+  )
 
   const renderGuildCard = (guild, index, labelPrefix) => (
     <section className="staff-section" key={`${guild.guildName}-member-list`}>
@@ -758,16 +845,29 @@ function MembersPage({ guilds }) {
         <EmptyState>길드원 데이터 없음</EmptyState>
       ) : (
         <ul className="member-name-list">
-          {sortByScore(visibleMembers).map((member) => (
-            <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${guild.guildName}-${member.nickname}`}>
-              <span className="member-name-main">
-                <strong>{member.nickname}</strong>
-                {guild.type === 'active' && <StoppedFiveMinuteDot member={member} />}
-                <GuildLeaderBadge member={member} />
-              </span>
-              <span>{formatNumber(member.score)}점</span>
-            </li>
-          ))}
+          {sortMembersForDisplay(visibleMembers, guild.guildName).map((member) => {
+            const manualLeaderKey = getManualLeaderKey(guild.guildName, member.nickname)
+
+            return (
+              <li
+                className={!member.nicknameFormatOk ? 'needs-check' : ''}
+                key={`${guild.guildName}-${member.nickname}`}
+                onContextMenu={(event) => event.preventDefault()}
+                onPointerCancel={() => clearLongPress(manualLeaderKey)}
+                onPointerDown={() => startLongPress(manualLeaderKey)}
+                onPointerLeave={() => clearLongPress(manualLeaderKey)}
+                onPointerUp={() => clearLongPress(manualLeaderKey)}
+              >
+                <span className="member-name-main">
+                  <strong>{member.nickname}</strong>
+                  <CrownBadge active={manualLeaderKeySet.has(manualLeaderKey)} />
+                  {guild.type === 'active' && <StoppedFiveMinuteDot member={member} />}
+                  <GuildLeaderBadge member={member} />
+                </span>
+                <span>{formatNumber(member.score)}{'\uC810'}</span>
+              </li>
+            )
+          })}
         </ul>
       )}
           </>
@@ -829,6 +929,7 @@ function MembersPage({ guilds }) {
               <li className="needs-check" key={`${member.guildName}-${member.nickname}-warning`}>
                 <span className="member-name-main">
                   <strong>{member.nickname}</strong>
+                  <CrownBadge active={manualLeaderKeySet.has(getManualLeaderKey(member.guildName, member.nickname))} />
                   <GuildLeaderBadge member={member} />
                 </span>
                 <span>{member.guildName}</span>
@@ -861,6 +962,7 @@ function MembersPage({ guilds }) {
                     <li>
                       <span className="member-name-main">
                         <strong>{mainMember.nickname}</strong>
+                        <CrownBadge active={manualLeaderKeySet.has(getManualLeaderKey(mainMember.guildName, mainMember.nickname))} />
                         <AccountRelationBadge meta={{ isMain: true, label: '\uBCF8\uACC4\uC815' }} />
                         <GuildLeaderBadge member={mainMember} />
                       </span>
@@ -870,6 +972,7 @@ function MembersPage({ guilds }) {
                       <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${member.guildName}-${member.nickname}-sub`}>
                         <span className="member-name-main">
                           <strong>{member.nickname}</strong>
+                          <CrownBadge active={manualLeaderKeySet.has(getManualLeaderKey(member.guildName, member.nickname))} />
                           <AccountRelationBadge meta={{ isMain: false, label: '\uBD80\uACC4\uC815' }} />
                           <GuildLeaderBadge member={member} />
                         </span>
