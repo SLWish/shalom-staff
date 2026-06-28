@@ -41,6 +41,11 @@ function StatusBadge({ children }) {
   return <span className="status-badge">{children}</span>
 }
 
+function RoleBadge({ member }) {
+  if (!member?.isGuildLeader) return null
+  return <span className="role-badge">길드장</span>
+}
+
 function SummaryList({ emptyText, items, renderItem, title }) {
   return (
     <div className="staff-summary-block">
@@ -130,7 +135,10 @@ function GuildSummaryCard({ guild, stats, summary }) {
           title="미달자 전체"
           renderItem={(member) => (
             <>
-              <strong>{member.nickname}</strong>
+              <span className="member-name-main">
+                <strong>{member.nickname}</strong>
+                <RoleBadge member={member} />
+              </span>
               <span>현재 점수: {member.score.toLocaleString()}점</span>
               <em>
                 기준 {(member.effectiveCutScore ?? guild.cutScore).toLocaleString()} · {member.shortage.toLocaleString()} 부족
@@ -148,7 +156,10 @@ function GuildSummaryCard({ guild, stats, summary }) {
           title="6시간 이상 미활동"
           renderItem={(member) => (
             <>
-              <strong>{member.nickname}</strong>
+              <span className="member-name-main">
+                <strong>{member.nickname}</strong>
+                <RoleBadge member={member} />
+              </span>
               <span>{member.score.toLocaleString()}점 · wave {typeof member.wph?.wave === 'number' ? member.wph.wave.toLocaleString() : '-'}</span>
               <em>마지막 기록: {formatDateTime(member.lastRecord)}</em>
               <em>미활동: {member.inactiveText}</em>
@@ -163,6 +174,7 @@ function GuildSummaryCard({ guild, stats, summary }) {
             <>
               <div className="member-title-row">
                 <strong>{member.nickname}</strong>
+                <RoleBadge member={member} />
                 <StatusBadge>기록 확인 불가</StatusBadge>
               </div>
               <span>{member.score.toLocaleString()}점</span>
@@ -176,7 +188,10 @@ function GuildSummaryCard({ guild, stats, summary }) {
           title="이동 후보 전체"
           renderItem={(member) => (
             <>
-              <strong>{member.nickname}</strong>
+              <span className="member-name-main">
+                <strong>{member.nickname}</strong>
+                <RoleBadge member={member} />
+              </span>
               <span>{member.currentGuild} → {member.recommendedGuild}</span>
               <em>현재 점수: {formatNumber(member.currentScore)}점</em>
               <em>예상 종료: {formatProjectedScore(member.projectedFinalScore)} · {member.projectionBasis}</em>

@@ -48,6 +48,7 @@ export const guildConfigs = [
 const ARRAY_KEYS = ['members', 'guildMembers', 'users', 'ranking', 'rankings', 'list', 'data']
 const NAME_KEYS = ['nickname', 'name', 'userName', 'username', 'playerName', 'player', 'nick']
 const SCORE_KEYS = ['score', 'seasonScore', 'point', 'points', 'seasonPoint', 'seasonPoints']
+const ROLE_KEYS = ['role', 'memo', 'grade', 'position', 'rank', 'memberRole', 'guildRole', 'title']
 const WAVE_KEYS = ['wave', 'waves', 'seasonWave']
 
 function findFirstArray(value, depth = 0) {
@@ -79,6 +80,26 @@ function normalizeNumber(value) {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
+}
+
+function normalizeRole(value) {
+  return value === undefined || value === null ? '' : String(value).trim()
+}
+
+function isGuildLeaderRole(value) {
+  const text = normalizeRole(value)
+  if (!text) return false
+
+  const lowerText = text.toLowerCase().replaceAll(/[\s_-]/g, '')
+  return (
+    lowerText.includes('guildmaster') ||
+    lowerText.includes('guildleader') ||
+    lowerText === 'master' ||
+    lowerText === 'leader' ||
+    lowerText === 'owner' ||
+    text.includes('길드장') ||
+    text.includes('마스터')
+  )
 }
 
 function normalizeApiDate(value) {
@@ -140,8 +161,9 @@ export async function fetchGuildSeason(config) {
     .map((member) => {
       const nickname = pickValue(member, NAME_KEYS)
       const score = normalizeNumber(pickValue(member, SCORE_KEYS))
+      const role = normalizeRole(pickValue(member, ROLE_KEYS))
       if (!nickname || score === null) return null
-      return { nickname: String(nickname), score }
+      return { isGuildLeader: isGuildLeaderRole(role), nickname: String(nickname), role, score }
     })
     .filter(Boolean)
 

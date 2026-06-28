@@ -1006,6 +1006,13 @@
   border-color: rgba(243, 203, 64, 0.45);
 }
 
+.member-name-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .member-name-list strong {
   min-width: 0;
   overflow: hidden;
@@ -1020,6 +1027,19 @@
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
+}
+
+.member-name-main .role-badge,
+.member-name-list .role-badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  color: #111827;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.2;
+  background: var(--yellow);
+  border-radius: 999px;
 }
 
 .copy-box {

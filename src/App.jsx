@@ -22,10 +22,27 @@ const INACTIVE_HOURS_THRESHOLD = 6
 const GUILD_ORDER = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const MAX_GUILD_MEMBERS = 20
 const SHOW_PROJECTION_DEBUG = false
-const GUILD_NICKNAME_PATTERN = /^SL_/i
+const GUILD_NICKNAME_PATTERN = /^SL_/
+const INVALID_GUILD_NICKNAME_PATTERN = /^5L_/i
 
 function createDefaultCutScores() {
   return Object.fromEntries(activeGuildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
+}
+
+function isGuildLeaderRole(value) {
+  const text = String(value || '').trim()
+  if (!text) return false
+
+  const lowerText = text.toLowerCase().replaceAll(/[\s_-]/g, '')
+  return (
+    lowerText.includes('guildmaster') ||
+    lowerText.includes('guildleader') ||
+    lowerText === 'master' ||
+    lowerText === 'leader' ||
+    lowerText === 'owner' ||
+    text.includes('길드장') ||
+    text.includes('마스터')
+  )
 }
 
 function getFallbackGuild(config, cutScore) {
@@ -35,7 +52,10 @@ function getFallbackGuild(config, cutScore) {
     seasonEndAt: fallback?.seasonEndAt || null,
     seasonPeriod: fallback?.seasonPeriod || '현재 시즌',
     cutScore,
-    members: fallback?.members || [],
+    members: (fallback?.members || []).map((member) => ({
+      ...member,
+      isGuildLeader: member.isGuildLeader || isGuildLeaderRole(member.role || member.memo),
+    })),
     type: config.type,
   }
 }
@@ -127,7 +147,13 @@ function getMemberCutMeta(member, guild, cutScore) {
 }
 
 function hasValidGuildNickname(nickname) {
-  return GUILD_NICKNAME_PATTERN.test(String(nickname || ''))
+  const text = String(nickname || '')
+  return GUILD_NICKNAME_PATTERN.test(text) && !INVALID_GUILD_NICKNAME_PATTERN.test(text)
+}
+
+function GuildLeaderBadge({ member }) {
+  if (!member?.isGuildLeader) return null
+  return <span className="role-badge">길드장</span>
 }
 
 function getDiffHoursFromApiDate(apiDate) {
@@ -635,7 +661,10 @@ function MembersPage({ guilds }) {
         <ul className="member-name-list">
           {sortByScore(visibleMembers).map((member) => (
             <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${guild.guildName}-${member.nickname}`}>
-              <strong>{member.nickname}</strong>
+              <span className="member-name-main">
+                <strong>{member.nickname}</strong>
+                <GuildLeaderBadge member={member} />
+              </span>
               <span>{formatNumber(member.score)}점</span>
             </li>
           ))}
@@ -694,7 +723,10 @@ function MembersPage({ guilds }) {
           <ul className="member-name-list">
             {nicknameWarnings.map((member) => (
               <li className="needs-check" key={`${member.guildName}-${member.nickname}-warning`}>
-                <strong>{member.nickname}</strong>
+                <span className="member-name-main">
+                  <strong>{member.nickname}</strong>
+                  <GuildLeaderBadge member={member} />
+                </span>
                 <span>{member.guildName}</span>
               </li>
             ))}
