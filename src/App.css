@@ -1042,6 +1042,18 @@
   border-radius: 999px;
 }
 
+.member-name-main .account-main-badge,
+.member-name-list .account-main-badge {
+  color: #06130c;
+  background: var(--green);
+}
+
+.member-name-main .account-alt-badge,
+.member-name-list .account-alt-badge {
+  color: #111827;
+  background: var(--yellow);
+}
+
 .copy-box {
   display: grid;
   gap: 10px;

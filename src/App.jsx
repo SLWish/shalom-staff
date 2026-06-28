@@ -193,6 +193,24 @@ function getAltAccountGroups(members) {
     .sort((a, b) => b.members.length - a.members.length || a.displayName.localeCompare(b.displayName))
 }
 
+function getAltAccountMeta(groups) {
+  return groups.reduce((meta, group) => {
+    const mainMember = group.members[0]
+    group.members.forEach((member) => {
+      meta.set(`${member.guildName}:${member.nickname}`, {
+        label: member === mainMember ? '본계정' : '부계정',
+        mainNickname: mainMember.nickname,
+      })
+    })
+    return meta
+  }, new Map())
+}
+
+function AccountRelationBadge({ meta }) {
+  if (!meta) return null
+  return <span className={meta.label === '본계정' ? 'role-badge account-main-badge' : 'role-badge account-alt-badge'}>{meta.label}</span>
+}
+
 function getDiffHoursFromApiDate(apiDate) {
   const recordTime = getValidRecordTime(apiDate)
   if (recordTime === null) return null
@@ -670,6 +688,7 @@ function MembersPage({ guilds }) {
   const allMembers = guilds.flatMap((guild) => guild.members.map((member) => ({ ...member, guildName: guild.guildName })))
   const nicknameWarnings = allMembers.filter((member) => !hasValidGuildNickname(member.nickname))
   const altAccountGroups = getAltAccountGroups(allMembers)
+  const altAccountMeta = getAltAccountMeta(altAccountGroups)
   const filterMembers = (members) =>
     normalizedSearch
       ? members.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch))
@@ -702,6 +721,7 @@ function MembersPage({ guilds }) {
               <span className="member-name-main">
                 <strong>{member.nickname}</strong>
                 <GuildLeaderBadge member={member} />
+                <AccountRelationBadge meta={altAccountMeta.get(`${guild.guildName}:${member.nickname}`)} />
               </span>
               <span>{formatNumber(member.score)}점</span>
             </li>
@@ -724,9 +744,6 @@ function MembersPage({ guilds }) {
         <div className="season-total-card">
           <strong>활동 {totalActive}명 · 휴식 {totalRest}명</strong>
           <span>닉네임 양식 확인 {nicknameWarnings.length}명 · 표시 {matchedCount}명</span>
-        </div>
-        <div className="season-total-card compact-total-card">
-          <span>부계정 의심 {altAccountGroups.length}그룹</span>
         </div>
         <label className="member-search-box">
           <span>닉네임 검색</span>
@@ -774,38 +791,6 @@ function MembersPage({ guilds }) {
           </ul>
         </section>
       )}
-
-      <section className="staff-section">
-        <div className="section-title">
-          <span>SL_ / sL_ / 5L_ 제외 후 비교</span>
-          <h2>부계정 의심 {altAccountGroups.length}그룹</h2>
-        </div>
-        {altAccountGroups.length === 0 ? (
-          <EmptyState>부계정 의심 그룹 없음</EmptyState>
-        ) : (
-          <div className="staff-card-list compact-list">
-            {altAccountGroups.map((group) => (
-              <article className="staff-row-card alt-account-card" key={`alt-${group.key}`}>
-                <div className="member-title-row">
-                  <strong>{group.displayName}</strong>
-                  <span className="status-badge">{group.members.length}명</span>
-                </div>
-                <ul className="member-name-list">
-                  {group.members.map((member) => (
-                    <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${member.guildName}-${member.nickname}-alt`}>
-                      <span className="member-name-main">
-                        <strong>{member.nickname}</strong>
-                        <GuildLeaderBadge member={member} />
-                      </span>
-                      <span>{member.guildName} · {formatNumber(member.score)}점</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
 
       <StaffNotice />
     </PageShell>
