@@ -208,8 +208,8 @@ export function normalizePlayerResponse(response, nickname) {
 
   return {
     nickname: String(apiNickname),
+    personalScore: score,
     wave,
-    score,
     apiDate: normalizeApiDate(apiDate),
   }
 }

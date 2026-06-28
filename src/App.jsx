@@ -889,7 +889,8 @@ function App() {
           checkedAt,
           fetchStatus: 'success',
           lastRecordDate: result.value.apiDate,
-          score: result.value.score ?? member.score,
+          personalScore: result.value.personalScore ?? null,
+          score: member.score,
           wave: result.value.wave,
           wphStatus: '상세 확인 완료',
         }
@@ -926,11 +927,10 @@ function App() {
         const { failedCount: failedDetailCount, records: playerRecords } = await fetchPlayerRecordsForGuild(config.guildName, data.members)
         const membersWithLatestScore = data.members.map((member) => {
           const playerRecord = playerRecords[member.nickname] || {}
-          const playerScore = Number(playerRecord.score)
           return {
             ...member,
             lastRecordAt: playerRecord.apiDate || null,
-            score: Number.isFinite(playerScore) ? playerScore : member.score,
+            personalScore: typeof playerRecord.personalScore === 'number' ? playerRecord.personalScore : null,
             wave: typeof playerRecord.wave === 'number' ? playerRecord.wave : null,
           }
         })

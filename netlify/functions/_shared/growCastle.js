@@ -108,7 +108,7 @@ export async function fetchPlayerSeason(nickname) {
   return {
     apiDate,
     nickname,
-    score,
+    personalScore: score,
     wave,
   }
 }
@@ -137,7 +137,7 @@ export async function fetchGuildSeason(config) {
       return {
         ...member,
         apiDate: detail?.apiDate || null,
-        score: typeof detail?.score === 'number' ? detail.score : member.score,
+        personalScore: typeof detail?.personalScore === 'number' ? detail.personalScore : null,
         wave: typeof detail?.wave === 'number' ? detail.wave : null,
       }
     }),
