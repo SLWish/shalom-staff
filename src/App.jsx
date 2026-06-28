@@ -156,7 +156,34 @@ function GuildLeaderBadge({ member }) {
   return <span className="role-badge">길드장</span>
 }
 
+const MANUAL_ALT_ACCOUNT_GROUPS = [
+  {
+    aliases: ['SL_Wish', 'SL_ChaOs', 'SL_ShaLom', 'SL_ZZoGGoMi'],
+    displayName: 'Wish',
+    key: 'manual-wish',
+    mainNickname: 'SL_Wish',
+  },
+]
+
+function normalizeManualAccountNickname(nickname) {
+  return String(nickname || '')
+    .trim()
+    .normalize('NFKC')
+    .replace(/\s/g, '')
+    .toLowerCase()
+}
+
+function getManualAltAccountGroup(nickname) {
+  const normalizedNickname = normalizeManualAccountNickname(nickname)
+  return MANUAL_ALT_ACCOUNT_GROUPS.find((group) =>
+    group.aliases.some((alias) => normalizeManualAccountNickname(alias) === normalizedNickname),
+  )
+}
+
 function getAltAccountKey(nickname) {
+  const manualGroup = getManualAltAccountGroup(nickname)
+  if (manualGroup) return manualGroup.key
+
   return String(nickname || '')
     .trim()
     .normalize('NFKC')
@@ -167,6 +194,9 @@ function getAltAccountKey(nickname) {
 }
 
 function getAltAccountDisplayName(nickname) {
+  const manualGroup = getManualAltAccountGroup(nickname)
+  if (manualGroup) return manualGroup.displayName
+
   return String(nickname || '')
     .trim()
     .normalize('NFKC')
@@ -183,6 +213,7 @@ function getAltAccountGroups(members) {
     const nextGroup = groups.get(key) || {
       displayName: getAltAccountDisplayName(member.nickname),
       key,
+      manualMainNickname: getManualAltAccountGroup(member.nickname)?.mainNickname || null,
       members: [],
     }
     nextGroup.members.push(member)
@@ -196,6 +227,8 @@ function getAltAccountGroups(members) {
       ...group,
       members: [...group.members].sort(
         (a, b) =>
+          Number(normalizeManualAccountNickname(b.nickname) === normalizeManualAccountNickname(group.manualMainNickname)) -
+            Number(normalizeManualAccountNickname(a.nickname) === normalizeManualAccountNickname(group.manualMainNickname)) ||
           (guildOrder.get(a.guildName) || 99) - (guildOrder.get(b.guildName) || 99) ||
           b.score - a.score ||
           a.nickname.localeCompare(b.nickname),
@@ -206,7 +239,10 @@ function getAltAccountGroups(members) {
 
 function getAltAccountMeta(groups) {
   return groups.reduce((meta, group) => {
-    const mainMember = group.members[0]
+    const mainMember =
+      group.members.find(
+        (member) => normalizeManualAccountNickname(member.nickname) === normalizeManualAccountNickname(group.manualMainNickname),
+      ) || group.members[0]
     group.members.forEach((member) => {
       meta.set(`${member.guildName}:${member.nickname}`, {
         isMain: member === mainMember,
