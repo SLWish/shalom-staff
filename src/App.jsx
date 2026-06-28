@@ -663,7 +663,7 @@ function MembersPage({ guilds }) {
           <input
             type="search"
             value={searchText}
-            placeholder="예: SL_ 또는 BTS"
+            placeholder="예: SL_ 또는 SL_Kain"
             onChange={(event) => setSearchText(event.target.value)}
           />
         </label>
