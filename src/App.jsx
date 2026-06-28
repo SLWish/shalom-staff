@@ -762,7 +762,7 @@ function MembersPage({ guilds }) {
             <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${guild.guildName}-${member.nickname}`}>
               <span className="member-name-main">
                 <strong>{member.nickname}</strong>
-                <StoppedFiveMinuteDot member={member} />
+                {guild.type === 'active' && <StoppedFiveMinuteDot member={member} />}
                 <GuildLeaderBadge member={member} />
               </span>
               <span>{formatNumber(member.score)}점</span>
@@ -789,7 +789,7 @@ function MembersPage({ guilds }) {
         </div>
         <div className="member-legend">
           <span className="stopped-dot" aria-hidden="true" />
-          <span>Red dot = 5min+ Defeat</span>
+          <span>Red dot = 5min+ Defeat, active guilds only</span>
         </div>
         <label className="member-search-box">
           <span>닉네임 검색</span>
