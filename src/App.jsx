@@ -600,28 +600,40 @@ function NewMembersPage({ guildStats }) {
 }
 
 function MembersPage({ guilds }) {
+  const [searchText, setSearchText] = useState('')
+  const normalizedSearch = searchText.trim().toLowerCase()
   const activeGuilds = guilds.filter((guild) => guild.type === 'active')
   const restGuilds = guilds.filter((guild) => guild.type === 'rest')
   const allMembers = guilds.flatMap((guild) => guild.members.map((member) => ({ ...member, guildName: guild.guildName })))
   const nicknameWarnings = allMembers.filter((member) => !hasValidGuildNickname(member.nickname))
+  const filterMembers = (members) =>
+    normalizedSearch
+      ? members.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch))
+      : members
+  const matchedCount = normalizedSearch ? allMembers.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch)).length : allMembers.length
   const totalActive = activeGuilds.reduce((sum, guild) => sum + guild.members.length, 0)
   const totalRest = restGuilds.reduce((sum, guild) => sum + guild.members.length, 0)
 
   const renderGuildCard = (guild, index, labelPrefix) => (
     <section className="staff-section" key={`${guild.guildName}-member-list`}>
+      {(() => {
+        const visibleMembers = filterMembers(guild.members)
+
+        return (
+          <>
       <div className="section-title">
         <span>{labelPrefix} {index + 1}</span>
         <h2>
-          {guild.guildName} · {guild.members.length}명
+          {guild.guildName} · {visibleMembers.length}/{guild.members.length}명
         </h2>
       </div>
       {guild.apiState?.status === 'loading' ? (
         <LoadingState guildName={guild.guildName} />
-      ) : guild.members.length === 0 ? (
+      ) : visibleMembers.length === 0 ? (
         <EmptyState>길드원 데이터 없음</EmptyState>
       ) : (
         <ul className="member-name-list">
-          {sortByScore(guild.members).map((member) => (
+          {sortByScore(visibleMembers).map((member) => (
             <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${guild.guildName}-${member.nickname}`}>
               <strong>{member.nickname}</strong>
               <span>{formatNumber(member.score)}점</span>
@@ -629,6 +641,9 @@ function MembersPage({ guilds }) {
           ))}
         </ul>
       )}
+          </>
+        )
+      })()}
     </section>
   )
 
@@ -641,8 +656,17 @@ function MembersPage({ guilds }) {
         </div>
         <div className="season-total-card">
           <strong>활동 {totalActive}명 · 휴식 {totalRest}명</strong>
-          <span>닉네임 양식 확인 {nicknameWarnings.length}명</span>
+          <span>닉네임 양식 확인 {nicknameWarnings.length}명 · 표시 {matchedCount}명</span>
         </div>
+        <label className="member-search-box">
+          <span>닉네임 검색</span>
+          <input
+            type="search"
+            value={searchText}
+            placeholder="예: SL_ 또는 BTS"
+            onChange={(event) => setSearchText(event.target.value)}
+          />
+        </label>
       </section>
 
       <section className="staff-section">

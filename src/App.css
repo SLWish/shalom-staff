@@ -960,6 +960,36 @@
   list-style: none;
 }
 
+.member-search-box {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.member-search-box span {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.member-search-box input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  color: var(--heading);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  background: #080c14;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+}
+
+.member-search-box input:focus {
+  border-color: rgba(243, 203, 64, 0.72);
+}
+
 .member-name-list li {
   display: flex;
   align-items: center;
