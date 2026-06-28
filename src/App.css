@@ -1029,6 +1029,16 @@
   font-weight: 900;
 }
 
+.stopped-dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  background: #ef3b4d;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(239, 59, 77, 0.16);
+}
+
 .member-name-main .role-badge,
 .member-name-list .role-badge {
   flex: 0 0 auto;

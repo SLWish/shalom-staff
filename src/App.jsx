@@ -259,6 +259,18 @@ function AccountRelationBadge({ meta }) {
   return <span className={meta.isMain ? 'role-badge account-main-badge' : 'role-badge account-alt-badge'}>{meta.label}</span>
 }
 
+function getLastRecordMinutes(member) {
+  const recordTime = getValidRecordTime(member.lastRecordDate || member.apiDate || member.wph?.apiDate)
+  if (recordTime === null) return null
+  return Math.max(0, Math.floor((Date.now() - recordTime) / 60000))
+}
+
+function StoppedFiveMinuteDot({ member }) {
+  const minutes = getLastRecordMinutes(member)
+  if (minutes === null || minutes < 5) return null
+  return <span className="stopped-dot" title={`마지막 기록 ${minutes}분 전`} aria-label={`5분 이상 멈춤, 마지막 기록 ${minutes}분 전`} />
+}
+
 function getDiffHoursFromApiDate(apiDate) {
   const recordTime = getValidRecordTime(apiDate)
   if (recordTime === null) return null
@@ -768,6 +780,7 @@ function MembersPage({ guilds }) {
             <li className={!member.nicknameFormatOk ? 'needs-check' : ''} key={`${guild.guildName}-${member.nickname}`}>
               <span className="member-name-main">
                 <strong>{member.nickname}</strong>
+                <StoppedFiveMinuteDot member={member} />
                 <GuildLeaderBadge member={member} />
                 <AccountRelationBadge meta={altAccountMeta.get(`${guild.guildName}:${member.nickname}`)} />
               </span>
