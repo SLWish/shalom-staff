@@ -162,6 +162,7 @@ function getAltAccountKey(nickname) {
     .normalize('NFKC')
     .replace(/^[sS5][lL][\s_.-]*/, '')
     .replace(/[\s_.-]/g, '')
+    .replace(/\d+$/, '')
     .toLowerCase()
 }
 
@@ -170,6 +171,7 @@ function getAltAccountDisplayName(nickname) {
     .trim()
     .normalize('NFKC')
     .replace(/^[sS5][lL][\s_.-]*/, '')
+    .replace(/\d+$/, '')
 }
 
 function getAltAccountGroups(members) {
