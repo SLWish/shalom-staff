@@ -1025,6 +1025,7 @@
 .member-name-main {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
 }
@@ -1053,6 +1054,33 @@
   border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
   box-shadow: 0 0 0 2px rgba(239, 59, 77, 0.16);
+}
+
+.stopped-status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px;
+  color: #ffd7dc !important;
+  font-size: 11px !important;
+  font-weight: 900;
+  line-height: 1.2;
+  background: rgba(239, 59, 77, 0.1);
+  border: 1px solid rgba(239, 59, 77, 0.28);
+  border-radius: 999px;
+}
+
+.stopped-status .stopped-dot {
+  width: 9px;
+  height: 9px;
+  border-width: 0;
+  box-shadow: 0 0 0 2px rgba(239, 59, 77, 0.16);
+}
+
+.stopped-check-time {
+  color: rgba(255, 255, 255, 0.62) !important;
 }
 
 .crown-badge {

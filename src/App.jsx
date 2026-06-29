@@ -284,10 +284,45 @@ function getLastRecordMinutes(member) {
   return Math.max(0, Math.floor((Date.now() - recordTime) / 60000))
 }
 
+function formatStoppedMinutes(minutes) {
+  if (!Number.isFinite(minutes)) return ''
+  if (minutes < 60) return `${minutes}\uBD84`
+
+  const hours = Math.floor(minutes / 60)
+  const restMinutes = minutes % 60
+  if (hours < 24) return restMinutes > 0 ? `${hours}\uC2DC\uAC04 ${restMinutes}\uBD84` : `${hours}\uC2DC\uAC04`
+
+  const days = Math.floor(hours / 24)
+  const restHours = hours % 24
+  return restHours > 0 ? `${days}\uC77C ${restHours}\uC2DC\uAC04` : `${days}\uC77C`
+}
+
+function formatCheckClock(value) {
+  const time = getValidRecordTime(value)
+  if (time === null) return null
+
+  return new Date(time).toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Seoul',
+  })
+}
 function StoppedFiveMinuteDot({ member }) {
   const minutes = getLastRecordMinutes(member)
   if (minutes === null || minutes < 5) return null
-  return <span className="stopped-dot" title={`마지막 기록 ${minutes}분 전`} aria-label={`5분 이상 멈춤, 마지막 기록 ${minutes}분 전`} />
+
+  const checkedAt = member.wph?.checkedAt || member.history?.lastCheckedAt || null
+  const checkedClock = formatCheckClock(checkedAt)
+  const stoppedLabel = formatStoppedMinutes(minutes)
+  const checkLabel = checkedClock ? `\uAC31\uC2E0 ${checkedClock}` : '\uAC31\uC2E0 \uD655\uC778 \uBD88\uAC00'
+
+  return (
+    <span className="stopped-status" title={`5\uBD84 \uC774\uC0C1 Defeat · ${stoppedLabel} · ${checkLabel}`}>
+      <span className="stopped-dot" aria-hidden="true" />
+      <span className="stopped-status-text">{stoppedLabel} Defeat</span>
+      <span className="stopped-check-time">{checkLabel}</span>
+    </span>
+  )
 }
 
 function getDiffHoursFromApiDate(apiDate) {
@@ -297,13 +332,13 @@ function getDiffHoursFromApiDate(apiDate) {
 }
 
 function formatInactiveDuration(diffHours) {
-  if (diffHours === null) return '기록 확인 불가'
+  if (diffHours === null) return '\uAE30\uB85D \uD655\uC778 \uBD88\uAC00'
   const totalMinutes = Math.max(0, Math.floor(diffHours * 60))
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
-  if (hours < 1) return `${minutes}분`
-  if (hours < 24) return `${hours}시간 ${minutes}분`
-  return `${Math.floor(hours / 24)}일 ${hours % 24}시간`
+  if (hours < 1) return `${minutes}\uBD84`
+  if (hours < 24) return `${hours}\uC2DC\uAC04 ${minutes}\uBD84`
+  return `${Math.floor(hours / 24)}\uC77C ${hours % 24}\uC2DC\uAC04`
 }
 
 function parseSeasonStart(seasonPeriod) {
@@ -889,7 +924,7 @@ function MembersPage({ guilds }) {
         </div>
         <div className="member-legend">
           <span className="stopped-dot" aria-hidden="true" />
-          <span>Red dot = 5min+ Defeat, active guilds only</span>
+          <span>Red dot = 5min+ Defeat · minutes and check time shown · active guilds only</span>
         </div>
         <label className="member-search-box">
           <span>닉네임 검색</span>
