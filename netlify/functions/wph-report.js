@@ -196,7 +196,7 @@ function pushCrystalFits(candidates, baseJump, remainder, scoreDelta) {
 function decomposeWaveDetail(waveDelta, scoreDelta) {
   const candidates = []
 
-  for (let baseJump = 6; baseJump >= 1; baseJump -= 1) {
+  for (let baseJump = 6; baseJump >= 3; baseJump -= 1) {
     const baseWave = scoreDelta * baseJump
     const remainder = waveDelta - baseWave
     if (remainder < 0) continue
@@ -213,12 +213,27 @@ function decomposeWaveDetail(waveDelta, scoreDelta) {
   )[0]
 }
 
+function formatWaveDetailFallback(waveDelta) {
+  if (waveDelta <= 0) return '0'
+  const baseJump = 6
+  const scoreDelta = Math.floor(waveDelta / baseJump)
+  const extra = waveDelta - scoreDelta * baseJump
+  return extra > 0 ? `${scoreDelta}x${baseJump}+${extra}` : `${scoreDelta}x${baseJump}`
+}
+
+function isPlausibleDetailScoreDelta(waveDelta, scoreDelta) {
+  if (typeof scoreDelta !== 'number' || scoreDelta <= 0) return false
+  if (scoreDelta > waveDelta / 3) return false
+  if (scoreDelta < waveDelta / 8) return false
+  return true
+}
+
 function formatWaveDetail(waveDelta, scoreDelta) {
   if (typeof waveDelta !== 'number') return '0'
-  if (typeof scoreDelta !== 'number' || scoreDelta <= 0) return String(waveDelta)
+  if (!isPlausibleDetailScoreDelta(waveDelta, scoreDelta)) return formatWaveDetailFallback(waveDelta)
 
   const detail = decomposeWaveDetail(waveDelta, scoreDelta)
-  if (!detail) return String(waveDelta)
+  if (!detail) return formatWaveDetailFallback(waveDelta)
 
   const parts = [`${scoreDelta}x${detail.baseJump}`]
   if (detail.crystalExtra > 0) parts.push(String(detail.crystalExtra))
