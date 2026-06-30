@@ -26,6 +26,7 @@ const SHOW_PROJECTION_DEBUG = false
 const GUILD_NICKNAME_PATTERN = /^SL_/
 const INVALID_GUILD_NICKNAME_PATTERN = /^5L_/i
 const MANUAL_LEADER_STORAGE_KEY = 'shalomInfo_manualGuildLeaders'
+const MOVE_SCOPE_ALL = 'all'
 
 function createDefaultCutScores() {
   return Object.fromEntries(activeGuildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
@@ -628,7 +629,7 @@ function getMoveCandidateGroups(candidates, targetSlotMap) {
 
 function getMoveTarget(guildName, currentScore, trend, cutScores) {
   const currentIndex = GUILD_ORDER.indexOf(guildName)
-  if (currentIndex <= 0) return null
+  if (currentIndex < 0) return null
 
   const upperGuilds = GUILD_ORDER.slice(0, currentIndex)
   for (const targetGuild of upperGuilds) {
@@ -655,7 +656,28 @@ function getMoveTarget(guildName, currentScore, trend, cutScores) {
       }
     }
   }
-  return null
+
+  const projectedScore = typeof trend.projectedFinalScore === 'number' ? trend.projectedFinalScore : null
+  const expectedScore = projectedScore ?? currentScore
+  const currentCutScore = cutScores[guildName] ?? 0
+  if (expectedScore >= currentCutScore || currentIndex >= GUILD_ORDER.length - 1) return null
+
+  const lowerGuilds = GUILD_ORDER.slice(currentIndex + 1)
+  const targetGuild = lowerGuilds.find((lowerGuild) => expectedScore >= (cutScores[lowerGuild] ?? 0)) || lowerGuilds.at(-1)
+  if (!targetGuild) return null
+
+  const targetCutScore = cutScores[targetGuild] ?? 0
+  const targetLabel = getTargetLabel(targetGuild)
+  const basis = projectedScore === null ? '현재 점수' : '예상 종료 점수'
+
+  return {
+    direction: 'down',
+    recommendationBasis: basis,
+    recommendedGuild: targetGuild,
+    reason: `${basis} ${formatNumber(expectedScore)}점 기준 ${targetLabel} 이동 검토`,
+    targetGuild,
+    targetCutScore,
+  }
 }
 
 function getMoveCandidatesForGuild(guild, cutScores, wphReport) {
@@ -1409,11 +1431,13 @@ function WphReportPage() {
   )
 }
 
-function MoveCandidatesPage({ guildStats, selectedEntry, selectedGuildName }) {
+function MoveCandidatesPage({ guildStats, isAllScope, selectedEntry, selectedGuildName }) {
   const { guild, staffData } = selectedEntry
-  const candidates = sortMoveCandidates(staffData.moveCandidates)
+  const allCandidates = sortMoveCandidates(guildStats.flatMap(({ staffData: entryStaffData }) => entryStaffData.moveCandidates))
+  const candidates = isAllScope ? allCandidates : sortMoveCandidates(staffData.moveCandidates)
   const targetSlotMap = getTargetSlotMap(guildStats)
   const targetGroups = getMoveCandidateGroups(candidates, targetSlotMap)
+  const titleLabel = isAllScope ? '전체 후보' : selectedGuildName
 
   return (
     <PageShell eyebrow="Move Candidates" title="이동 후보">
@@ -1421,7 +1445,7 @@ function MoveCandidatesPage({ guildStats, selectedEntry, selectedGuildName }) {
         <div className="section-title">
           <span>확정이 아닌 참고 후보</span>
           <h2>
-            {selectedGuildName} · {candidates.length}명
+            {titleLabel} · {candidates.length}명
           </h2>
         </div>
         {candidates.length === 0 ? (
@@ -1517,7 +1541,7 @@ function MoveCandidatesPage({ guildStats, selectedEntry, selectedGuildName }) {
           </>
         )}
       </section>
-      <p className="selected-debug">현재 선택 길드: {guild.guildName}</p>
+      <p className="selected-debug">현재 보기: {isAllScope ? '총 요약' : guild.guildName}</p>
       <StaffNotice />
     </PageShell>
   )
@@ -1536,6 +1560,7 @@ function App() {
   )
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [lastRefreshedAtByGuild, setLastRefreshedAtByGuild] = useState({})
+  const [moveScope, setMoveScope] = useState(MOVE_SCOPE_ALL)
   const [selectedGuildName, setSelectedGuildName] = useState(activeGuildConfigs[0].guildName)
   const [serverWphReport, setServerWphReport] = useState(null)
   const [wphRecordsByGuild, setWphRecordsByGuild] = useState(() =>
@@ -1806,7 +1831,7 @@ function App() {
   }, [activePage, refreshGuild, selectedGuildName])
 
   useEffect(() => {
-    if (activePage !== 'attention' && activePage !== 'new-members') return
+    if (activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'moves') return
     activeGuildConfigs.forEach((config) => {
       if (!guildData[config.guildName]) refreshGuild(config)
     })
@@ -1827,6 +1852,15 @@ function App() {
   }, [activePage, archives, guilds, saveSeasonArchive])
 
   const handleGuildChange = (guildName) => {
+    if (guildName === MOVE_SCOPE_ALL) {
+      setMoveScope(MOVE_SCOPE_ALL)
+      activeGuildConfigs.forEach((config) => {
+        if (!guildData[config.guildName]) refreshGuild(config)
+      })
+      return
+    }
+
+    setMoveScope(guildName)
     setSelectedGuildName(guildName)
     const nextConfig = activeGuildConfigs.find((config) => config.guildName === guildName)
     if (nextConfig) refreshGuild(nextConfig)
@@ -1836,7 +1870,10 @@ function App() {
     setActivePage(pageId)
     setIsMenuOpen(false)
 
-    if (pageId === 'status' || pageId === 'moves') {
+    if (pageId === 'moves') {
+      setMoveScope(MOVE_SCOPE_ALL)
+      activeGuildConfigs.forEach((config) => refreshGuild(config))
+    } else if (pageId === 'status') {
       refreshGuild(selectedConfig)
     }
 
@@ -1858,8 +1895,19 @@ function App() {
       <main className="main-content">
         {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && activePage !== 'wph' && (
           <>
-            <GuildSelector guilds={activeGuilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
-            <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
+            <GuildSelector
+              extraItems={
+                activePage === 'moves'
+                  ? [{ description: '전체 후보', label: '총 요약', value: MOVE_SCOPE_ALL }]
+                  : []
+              }
+              guilds={activeGuilds}
+              selectedGuildName={activePage === 'moves' ? moveScope : selectedGuildName}
+              onChange={handleGuildChange}
+            />
+            {!(activePage === 'moves' && moveScope === MOVE_SCOPE_ALL) && (
+              <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
+            )}
           </>
         )}
 
@@ -1882,6 +1930,7 @@ function App() {
         {activePage === 'moves' && (
           <MoveCandidatesPage
             guildStats={activeGuildStats}
+            isAllScope={moveScope === MOVE_SCOPE_ALL}
             selectedEntry={selectedEntry}
             selectedGuildName={selectedGuildName}
           />
