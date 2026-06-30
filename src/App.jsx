@@ -1567,7 +1567,6 @@ function WphReportPage() {
                     </li>
                   ))}
                 </ol>
-                <small>55분 스냅샷의 score 증가량과 wave 증가량으로 기본 점프와 특수 점프를 추정합니다.</small>
               </div>
             )}
           </div>

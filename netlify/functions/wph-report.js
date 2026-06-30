@@ -119,15 +119,61 @@ function getSkipCount(hourlyValues, averageWph) {
   }, 0)
 }
 
+function getClosestAutoRatioScore(autoExtra, scoreDelta) {
+  const ratio = autoExtra / scoreDelta
+  const expectedRatios = [0, 0.2, 0.4, 0.6]
+  return Math.min(...expectedRatios.map((expected) => Math.abs(ratio - expected)))
+}
+
+function decomposeWaveDetail(waveDelta, scoreDelta) {
+  const candidates = []
+
+  for (let baseJump = 6; baseJump >= 3; baseJump -= 1) {
+    const baseWave = scoreDelta * baseJump
+    const remainder = waveDelta - baseWave
+    if (remainder < 0) continue
+
+    const crystalUnit = 30 - baseJump
+    const maxCrystalCount = crystalUnit > 0 ? Math.floor(remainder / crystalUnit) : 0
+
+    for (let crystalCount = 0; crystalCount <= maxCrystalCount; crystalCount += 1) {
+      const crystalExtra = crystalCount * crystalUnit
+      const autoExtra = remainder - crystalExtra
+      const autoScore = getClosestAutoRatioScore(autoExtra, scoreDelta)
+      const score =
+        autoScore +
+        crystalCount * 0.02 +
+        (6 - baseJump) * 0.05 +
+        (autoExtra > scoreDelta * 0.75 ? 0.25 : 0)
+
+      candidates.push({
+        autoExtra,
+        baseJump,
+        crystalExtra,
+        score,
+      })
+    }
+  }
+
+  return candidates.sort(
+    (a, b) =>
+      a.score - b.score ||
+      b.baseJump - a.baseJump ||
+      a.crystalExtra - b.crystalExtra,
+  )[0]
+}
+
 function formatWaveDetail(waveDelta, scoreDelta) {
   if (typeof waveDelta !== 'number') return '0'
   if (typeof scoreDelta !== 'number' || scoreDelta <= 0) return String(waveDelta)
 
-  const baseJump = Math.floor(waveDelta / scoreDelta)
-  const specialJump = waveDelta - scoreDelta * baseJump
-  if (baseJump <= 0) return String(waveDelta)
+  const detail = decomposeWaveDetail(waveDelta, scoreDelta)
+  if (!detail) return String(waveDelta)
 
-  return specialJump > 0 ? `${scoreDelta}x${baseJump}+${specialJump}` : `${scoreDelta}x${baseJump}`
+  const parts = [`${scoreDelta}x${detail.baseJump}`]
+  if (detail.crystalExtra > 0) parts.push(String(detail.crystalExtra))
+  if (detail.autoExtra > 0) parts.push(String(detail.autoExtra))
+  return parts.join('+')
 }
 
 function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
