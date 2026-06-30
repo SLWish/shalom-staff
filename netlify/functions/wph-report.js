@@ -4,6 +4,7 @@ const REPORT_GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3']
 const LOOKBACK_HOURS = 18
 const REPORT_MINUTE = 55
 const SOURCE_MINUTE_MIN = 53
+const SOURCE_MINUTE_MAX = 54
 const INTERVAL_COUNT = 4
 
 function json(statusCode, body) {
@@ -28,7 +29,8 @@ function getReportSlot(capturedAt) {
   if (capturedTime === null) return null
 
   const capturedDate = new Date(capturedTime)
-  if (capturedDate.getUTCMinutes() < SOURCE_MINUTE_MIN) return null
+  const capturedMinute = capturedDate.getUTCMinutes()
+  if (capturedMinute < SOURCE_MINUTE_MIN || capturedMinute > SOURCE_MINUTE_MAX) return null
 
   const slot = new Date(capturedTime)
   slot.setUTCMinutes(REPORT_MINUTE, 0, 0)
