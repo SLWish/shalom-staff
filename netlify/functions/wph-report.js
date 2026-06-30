@@ -3,10 +3,13 @@ import { selectRows } from './_shared/supabaseRest.js'
 const REPORT_GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3']
 const LOOKBACK_HOURS = 18
 const REPORT_MINUTE = 55
-const SOURCE_MINUTE_MIN = 53
-const SOURCE_MINUTE_MAX = 54
+const PRIMARY_SOURCE_MINUTE_MIN = 53
+const PRIMARY_SOURCE_MINUTE_MAX = 54
+const FALLBACK_SOURCE_MINUTE_MIN = 55
+const FALLBACK_SOURCE_MINUTE_MAX = 56
 const INTERVAL_COUNT = 4
 const GUILD_RANKING_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds'
+const MAX_NORMAL_WPH = 3000
 
 function json(statusCode, body) {
   return {
@@ -25,35 +28,42 @@ function formatSlotKey(date) {
   return date.toISOString()
 }
 
-function getReportSlot(capturedAt) {
+function getReportSlotInfo(capturedAt) {
   const capturedTime = toTime(capturedAt)
   if (capturedTime === null) return null
 
   const capturedDate = new Date(capturedTime)
   const capturedMinute = capturedDate.getUTCMinutes()
-  if (capturedMinute < SOURCE_MINUTE_MIN || capturedMinute > SOURCE_MINUTE_MAX) return null
+  const isPrimary = capturedMinute >= PRIMARY_SOURCE_MINUTE_MIN && capturedMinute <= PRIMARY_SOURCE_MINUTE_MAX
+  const isFallback = capturedMinute >= FALLBACK_SOURCE_MINUTE_MIN && capturedMinute <= FALLBACK_SOURCE_MINUTE_MAX
+  if (!isPrimary && !isFallback) return null
 
   const slot = new Date(capturedTime)
   slot.setUTCMinutes(REPORT_MINUTE, 0, 0)
-  return slot
+  return {
+    sourcePriority: isPrimary ? 0 : 1,
+    slot,
+  }
 }
 
 function groupRows(rows) {
   const grouped = new Map()
 
   rows.forEach((row) => {
-    const slot = getReportSlot(row.captured_at)
-    if (!slot) return
+    const slotInfo = getReportSlotInfo(row.captured_at)
+    if (!slotInfo) return
 
-    const slotKey = formatSlotKey(slot)
+    const slotKey = formatSlotKey(slotInfo.slot)
     const key = `${row.guild_name}__${slotKey}__${row.captured_at}`
     if (!grouped.has(key)) {
       grouped.set(key, {
         capturedAt: row.captured_at,
         guildName: row.guild_name,
         rows: [],
+        seasonKey: row.season_key,
         slotAt: slotKey,
-        slotTime: slot.getTime(),
+        slotTime: slotInfo.slot.getTime(),
+        sourcePriority: slotInfo.sourcePriority,
       })
     }
     grouped.get(key).rows.push(row)
@@ -73,7 +83,13 @@ function chooseSnapshots(rows) {
         const current = selected[snapshot.slotAt]
         const snapshotDistance = Math.abs(toTime(snapshot.capturedAt) - snapshot.slotTime)
         const currentDistance = current ? Math.abs(toTime(current.capturedAt) - current.slotTime) : Infinity
-        if (!current || snapshotDistance < currentDistance) selected[snapshot.slotAt] = snapshot
+        if (
+          !current ||
+          snapshot.sourcePriority < current.sourcePriority ||
+          (snapshot.sourcePriority === current.sourcePriority && snapshotDistance < currentDistance)
+        ) {
+          selected[snapshot.slotAt] = snapshot
+        }
         return selected
       }, {})
 
@@ -114,12 +130,19 @@ function buildGuildReport(guildName, snapshots) {
   const members = latestMembers
     .map((latestRow) => {
       const hourly = []
+      let skippedIntervals = 0
       for (let index = 1; index < bySlot.length; index += 1) {
         const previous = bySlot[index - 1].members[latestRow.nickname]
         const current = bySlot[index].members[latestRow.nickname]
         const previousWave = Number(previous?.wave)
         const currentWave = Number(current?.wave)
-        hourly.push(Number.isFinite(previousWave) && Number.isFinite(currentWave) ? Math.max(0, currentWave - previousWave) : null)
+        const waveDelta = Number.isFinite(previousWave) && Number.isFinite(currentWave) ? Math.max(0, currentWave - previousWave) : null
+        if (waveDelta !== null && waveDelta > MAX_NORMAL_WPH) {
+          skippedIntervals += 1
+          hourly.push(null)
+        } else {
+          hourly.push(waveDelta)
+        }
       }
 
       const validHourly = hourly.filter((value) => typeof value === 'number')
@@ -128,7 +151,7 @@ function buildGuildReport(guildName, snapshots) {
       const startWave = typeof startRow?.wave === 'number' ? startRow.wave : null
       const endWave = typeof latestRow.wave === 'number' ? latestRow.wave : null
       const downMinutes = getDownMinutes(latestRow)
-      const skips = validHourly.filter((value) => averageWph && value > averageWph * 1.35).length
+      const skips = skippedIntervals + validHourly.filter((value) => averageWph && value > averageWph * 1.35).length
 
       return {
         averageWph,
@@ -176,11 +199,13 @@ export async function handler() {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString()
     const [rows, ranks] = await Promise.all([
       selectRows(
-        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=3000`,
+        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=3000`,
       ),
       fetchGuildRanks(),
     ])
-    const snapshotsByGuild = chooseSnapshots(rows)
+    const latestSeasonKey = [...rows].reverse().find((row) => row.season_key)?.season_key
+    const currentSeasonRows = latestSeasonKey ? rows.filter((row) => row.season_key === latestSeasonKey) : rows
+    const snapshotsByGuild = chooseSnapshots(currentSeasonRows)
     const guilds = Object.fromEntries(
       REPORT_GUILDS.map((guildName) => {
         const report = buildGuildReport(guildName, snapshotsByGuild[guildName] || [])
