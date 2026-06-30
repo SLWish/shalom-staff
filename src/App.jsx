@@ -467,7 +467,6 @@ function formatWphSeasonRange(startValue, endValue) {
 function formatWphScoreProjection(member) {
   if (typeof member.currentScore !== 'number') return '점수: 확인 불가'
   if (typeof member.projectedFinalScore !== 'number') return `점수: ${formatNumber(member.currentScore)} -> 예측 대기`
-  if (member.projectedFinalScore === member.currentScore) return `점수: ${formatNumber(member.currentScore)} 유지 예상`
   return `점수: ${formatNumber(member.currentScore)} -> ${formatNumber(member.projectedFinalScore)} 예상`
 }
 
