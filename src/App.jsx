@@ -813,6 +813,48 @@ function getArchiveFailureCountText(groups) {
   return groups.map((group, index) => `${index + 1}군 ${group.failedMembers.length}명`).join(' · ')
 }
 
+function getWarningAccumulations(archives) {
+  const warningMap = new Map()
+
+  archives.forEach((archive) => {
+    getArchiveFailureGroups(archive).forEach((group, index) => {
+      group.failedMembers.forEach((member) => {
+        const key = member.nickname
+        const current = warningMap.get(key) || {
+          guilds: new Set(),
+          lastGuildName: group.guildName,
+          lastScore: member.score,
+          lastShortage: member.shortage,
+          nickname: member.nickname,
+          seasons: [],
+          tierLabels: new Set(),
+          warningCount: 0,
+        }
+
+        current.warningCount += 1
+        current.lastGuildName = group.guildName
+        current.lastScore = member.score
+        current.lastShortage = member.shortage
+        current.guilds.add(group.guildName)
+        current.tierLabels.add(`${index + 1}군`)
+        current.seasons.push({
+          label: formatSeasonButtonLabel(archive),
+          tierLabel: `${index + 1}군`,
+        })
+        warningMap.set(key, current)
+      })
+    })
+  })
+
+  return [...warningMap.values()]
+    .map((member) => ({
+      ...member,
+      guilds: [...member.guilds],
+      tierLabels: [...member.tierLabels],
+    }))
+    .sort((a, b) => b.warningCount - a.warningCount || b.lastShortage - a.lastShortage || a.nickname.localeCompare(b.nickname))
+}
+
 function buildArchiveNoticeText(archive, groups) {
   if (!archive) return ''
 
@@ -1287,10 +1329,50 @@ function ArchiveDetail({ archive }) {
   )
 }
 
+function WarningAccumulationList({ archives }) {
+  const warnings = getWarningAccumulations(archives)
+
+  return (
+    <section className="staff-section archive-history-detail">
+      <div className="section-title">
+        <span>경고 리스트</span>
+        <h2>길드원 경고 누적</h2>
+      </div>
+      {warnings.length === 0 ? (
+        <EmptyState>누적 경고 기록 없음</EmptyState>
+      ) : (
+        <div className="warning-accumulation-list">
+          {warnings.map((member) => (
+            <article className="warning-accumulation-card" key={member.nickname}>
+              <div>
+                <strong>{member.nickname}</strong>
+                <span>{member.tierLabels.join(' · ')} · {member.guilds.join(' / ')}</span>
+              </div>
+              <div>
+                <b>{member.warningCount}회</b>
+                <small>
+                  최근 {formatNumber(member.lastScore)}점 · {formatNumber(member.lastShortage)} 부족
+                </small>
+              </div>
+              <ul className="warning-season-chips">
+                {member.seasons.map((season, index) => (
+                  <li key={`${member.nickname}-${season.label}-${index}`}>
+                    {season.tierLabel} · {season.label}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function AttentionPage({ archiveStatus, archives }) {
   const [selectedArchiveKey, setSelectedArchiveKey] = useState(null)
   const [isSeasonPickerOpen, setIsSeasonPickerOpen] = useState(false)
-  const selectedArchive = archives.find((archive) => archive.seasonKey === selectedArchiveKey) || archives[0] || null
+  const selectedArchive = archives.find((archive) => archive.seasonKey === selectedArchiveKey) || null
 
   return (
     <PageShell eyebrow="Warning Records" title="경고 기록">
@@ -1302,7 +1384,7 @@ function AttentionPage({ archiveStatus, archives }) {
           </div>
         </div>
         <p className="page-note">
-          최대 10시즌까지 보관합니다.
+          최근 3시즌까지 보관합니다.
           <br />
           시즌 날짜를 누르면 해당 시즌 미달자 목록이 열립니다.
         </p>
@@ -1320,7 +1402,7 @@ function AttentionPage({ archiveStatus, archives }) {
               className={`archive-picker-strip ${isSeasonPickerOpen ? 'active' : ''}`}
               onClick={() => setIsSeasonPickerOpen((open) => !open)}
             >
-              시즌 선택 · {formatSeasonButtonLabel(selectedArchive)}
+              {selectedArchive ? `시즌 선택 · ${formatSeasonButtonLabel(selectedArchive)}` : '시즌을 선택해주세요'}
             </button>
 
             {isSeasonPickerOpen && (
@@ -1346,23 +1428,25 @@ function AttentionPage({ archiveStatus, archives }) {
               </div>
             )}
 
-            <div className="archive-selected-card">
-              <span className="archive-season-main">
-                <small>선택된 시즌</small>
-                <strong>{formatSeasonButtonLabel(selectedArchive)}</strong>
-                <small className="archive-tier-counts">
-                  {getArchiveFailureCountText(getArchiveFailureGroups(selectedArchive))}
-                </small>
-              </span>
-              <span className="archive-fail-count">
-                미달 {getArchiveFailureGroups(selectedArchive).reduce((sum, group) => sum + group.failedMembers.length, 0)}명
-              </span>
-            </div>
+            {selectedArchive && (
+              <div className="archive-selected-card">
+                <span className="archive-season-main">
+                  <small>선택된 시즌</small>
+                  <strong>{formatSeasonButtonLabel(selectedArchive)}</strong>
+                  <small className="archive-tier-counts">
+                    {getArchiveFailureCountText(getArchiveFailureGroups(selectedArchive))}
+                  </small>
+                </span>
+                <span className="archive-fail-count">
+                  미달 {getArchiveFailureGroups(selectedArchive).reduce((sum, group) => sum + group.failedMembers.length, 0)}명
+                </span>
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      <ArchiveDetail archive={selectedArchive} />
+      {selectedArchive ? <ArchiveDetail archive={selectedArchive} /> : <WarningAccumulationList archives={archives} />}
       <StaffNotice />
     </PageShell>
   )

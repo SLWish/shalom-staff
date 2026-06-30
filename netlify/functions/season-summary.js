@@ -1,7 +1,7 @@
 import { selectRows } from './_shared/supabaseRest.js'
 
 const REPORT_GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3']
-const MAX_SEASONS = 10
+const MAX_SEASONS = 5
 const REPORT_MINUTE = 55
 const PRIMARY_SOURCE_MINUTE_MIN = 53
 const PRIMARY_SOURCE_MINUTE_MAX = 56

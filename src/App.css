@@ -1325,8 +1325,8 @@
 
 .archive-picker-strip.active {
   color: #0b0e16;
-  background: var(--yellow);
-  border-color: #d2a70d;
+  background: #f1d36a;
+  border-color: rgba(241, 211, 106, 0.85);
 }
 
 .archive-selected-card {
@@ -1356,16 +1356,16 @@
   display: block;
   width: 100%;
   padding: 10px 12px;
-  color: #151922;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #dfe3ea;
+  color: var(--text);
+  background: #111722;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: none;
 }
 
 .archive-picker-options .archive-card.active {
-  color: #0b0e16;
-  background: var(--yellow);
-  border-color: #d2a70d;
+  color: #f7f3d4;
+  background: rgba(243, 203, 64, 0.12);
+  border-color: rgba(243, 203, 64, 0.52);
 }
 
 .archive-option-line {
@@ -1384,13 +1384,13 @@
 }
 
 .archive-option-line small {
-  color: #6b7280;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 800;
 }
 
 .archive-picker-options .archive-card.active .archive-option-line small {
-  color: rgba(11, 14, 22, 0.72);
+  color: rgba(247, 243, 212, 0.72);
 }
 
 .archive-season-main {
@@ -1423,6 +1423,64 @@
 
 .archive-copy-box {
   margin-top: 14px;
+}
+
+.warning-accumulation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.warning-accumulation-card {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  background: #0b0f17;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.warning-accumulation-card > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.warning-accumulation-card strong {
+  color: var(--heading);
+  font-size: 15px;
+}
+
+.warning-accumulation-card span,
+.warning-accumulation-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.warning-accumulation-card b {
+  color: var(--yellow);
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.warning-season-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.warning-season-chips li {
+  padding: 5px 8px;
+  color: #d9e0eb;
+  font-size: 12px;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
 }
 
 .wph-guild-tabs {
