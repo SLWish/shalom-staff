@@ -1257,7 +1257,7 @@ function ArchiveDetail({ archive }) {
   return (
     <section className="staff-section archive-history-detail">
       <div className="section-title">
-        <span>과거 시즌 미달자</span>
+        <span>시즌 미달자 내역</span>
         <h2>{formatSeasonButtonLabel(archive)}</h2>
       </div>
       <div className="season-total-card">
@@ -1292,10 +1292,14 @@ function AttentionPage({ archiveStatus, archives }) {
         <div className="section-title archive-title-row">
           <div>
             <span>시즌 종료 직전 자동 저장</span>
-            <h2>과거 시즌 미달자 기록</h2>
+            <h2>ShaLom 길드 시즌 기록</h2>
           </div>
         </div>
-        <p className="page-note">최대 10시즌까지 보관하며, 시즌 날짜를 누르면 해당 시즌 미달자 목록이 열립니다.</p>
+        <p className="page-note">
+          최대 10시즌까지 보관합니다.
+          <br />
+          시즌 날짜를 누르면 해당 시즌 미달자 목록이 열립니다.
+        </p>
         {archiveStatus && <p className="archive-status">{archiveStatus}</p>}
         {archives.length === 0 ? (
           <div className="empty-state compact-empty">
@@ -1315,7 +1319,7 @@ function AttentionPage({ archiveStatus, archives }) {
 
             <div className="archive-selected-card">
               <span className="archive-season-main">
-                <small>시즌 선택</small>
+                <small>선택된 시즌</small>
                 <strong>{formatSeasonButtonLabel(selectedArchive)}</strong>
                 <small className="archive-tier-counts">
                   {getArchiveFailureCountText(getArchiveFailureGroups(selectedArchive))}
