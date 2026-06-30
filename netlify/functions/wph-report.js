@@ -213,14 +213,6 @@ function decomposeWaveDetail(waveDelta, scoreDelta) {
   )[0]
 }
 
-function formatWaveDetailFallback(waveDelta) {
-  if (waveDelta <= 0) return '0'
-  const baseJump = 6
-  const scoreDelta = Math.floor(waveDelta / baseJump)
-  const extra = waveDelta - scoreDelta * baseJump
-  return extra > 0 ? `${scoreDelta}x${baseJump}+${extra}` : `${scoreDelta}x${baseJump}`
-}
-
 function isPlausibleDetailScoreDelta(waveDelta, scoreDelta) {
   if (typeof scoreDelta !== 'number' || scoreDelta <= 0) return false
   if (scoreDelta > waveDelta / 3) return false
@@ -230,10 +222,10 @@ function isPlausibleDetailScoreDelta(waveDelta, scoreDelta) {
 
 function formatWaveDetail(waveDelta, scoreDelta) {
   if (typeof waveDelta !== 'number') return '0'
-  if (!isPlausibleDetailScoreDelta(waveDelta, scoreDelta)) return formatWaveDetailFallback(waveDelta)
+  if (!isPlausibleDetailScoreDelta(waveDelta, scoreDelta)) return String(waveDelta)
 
   const detail = decomposeWaveDetail(waveDelta, scoreDelta)
-  if (!detail) return formatWaveDetailFallback(waveDelta)
+  if (!detail) return String(waveDelta)
 
   const parts = [`${scoreDelta}x${detail.baseJump}`]
   if (detail.crystalExtra > 0) parts.push(String(detail.crystalExtra))
