@@ -202,7 +202,7 @@ export async function handler() {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString()
     const [rows, ranks] = await Promise.all([
       selectRows(
-        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=3000`,
+        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=3000`,
       ),
       fetchGuildRanks(),
     ])
