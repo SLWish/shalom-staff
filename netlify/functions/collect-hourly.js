@@ -6,6 +6,7 @@ import { deleteRows, insertRows, selectRows, upsertRows } from './_shared/supaba
 const MAX_MEMBERS = 20
 const INACTIVE_HOURS = 6
 const MAX_ARCHIVE_COUNT = 10
+const ARCHIVE_SNAPSHOT_LOOKBACK_LIMIT = 600
 
 function json(statusCode, body) {
   return {
@@ -148,6 +149,143 @@ function buildSeasonArchive(guilds, capturedAt, seasonKey) {
   }
 }
 
+function getTime(value) {
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+function getActiveGuildNames() {
+  return guildConfigs.filter((config) => config.type !== 'rest').map((config) => config.guildName)
+}
+
+function groupRowsByCapturedAt(rows) {
+  return rows.reduce((grouped, row) => {
+    const key = row.captured_at
+    if (!key) return grouped
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(row)
+    return grouped
+  }, {})
+}
+
+function buildSeasonArchiveFromSnapshot(guildRows, memberRows, seasonKey, fallbackCapturedAt) {
+  const activeGuildNames = getActiveGuildNames()
+  const guildRowsByName = Object.fromEntries(guildRows.map((row) => [row.guild_name, row]))
+  const membersByGuild = memberRows.reduce((grouped, member) => {
+    if (!grouped[member.guild_name]) grouped[member.guild_name] = []
+    grouped[member.guild_name].push(member)
+    return grouped
+  }, {})
+  const firstGuild = guildRows.find((row) => row.raw_json?.seasonStartAt || row.raw_json?.seasonEndAt)
+  const seasonStartAt = firstGuild?.raw_json?.seasonStartAt || null
+  const seasonEndAt = firstGuild?.raw_json?.seasonEndAt || null
+  const capturedAt = fallbackCapturedAt || guildRows[0]?.captured_at || new Date().toISOString()
+
+  const archiveGuilds = activeGuildNames.map((guildName, index) => {
+    const guildRow = guildRowsByName[guildName] || {}
+    const cutScore = Number(guildRow.cut_score) || guildConfigs.find((config) => config.guildName === guildName)?.cutScore || 0
+    const members = (membersByGuild[guildName] || []).map((member) => {
+      const score = Number(member.score) || 0
+      return {
+        achieved: score >= cutScore,
+        lastRecordAt: member.api_date || null,
+        nickname: member.nickname,
+        score,
+        shortage: Math.max(0, cutScore - score),
+        wave: member.wave ?? null,
+      }
+    })
+    const failedMembers = members
+      .filter((member) => !member.achieved)
+      .map((member) => ({
+        cutScore,
+        nickname: member.nickname,
+        score: member.score,
+        shortage: member.shortage,
+      }))
+      .sort((a, b) => b.shortage - a.shortage || a.score - b.score)
+    const clearedCount = members.length - failedMembers.length
+
+    return {
+      clearRate: members.length > 0 ? Math.round((clearedCount / members.length) * 100) : 0,
+      clearedCount,
+      cutScore,
+      failedCount: failedMembers.length,
+      failedMembers,
+      guildName,
+      members,
+      tierLabel: `${index + 1}군`,
+      totalMembers: members.length,
+    }
+  })
+  const totalFailedCount = archiveGuilds.reduce((sum, guild) => sum + guild.failedCount, 0)
+
+  return {
+    archive_json: {
+      archiveTargetAt: getArchiveTargetAt(seasonEndAt),
+      guilds: archiveGuilds,
+      recoveredFromSnapshotAt: capturedAt,
+      savedAt: capturedAt,
+      saveType: 'auto',
+      seasonEndAt,
+      seasonKey,
+      seasonStartAt,
+    },
+    archive_target_at: getArchiveTargetAt(seasonEndAt),
+    saved_at: capturedAt,
+    save_type: 'auto',
+    season_end_at: seasonEndAt,
+    season_key: seasonKey,
+    season_start_at: seasonStartAt,
+    total_failed_count: totalFailedCount,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+async function archiveRecoveredPreviousSeason(currentSeasonKey) {
+  const archivedRows = await selectRows('season_archives?select=season_key')
+  const archivedKeys = new Set(archivedRows.map((row) => row.season_key).filter(Boolean))
+  const activeGuildNames = getActiveGuildNames()
+  const activeGuildFilter = activeGuildNames.join(',')
+  const snapshotRows = await selectRows(
+    `guild_snapshots?select=*&guild_name=in.(${activeGuildFilter})&order=captured_at.desc&limit=${ARCHIVE_SNAPSHOT_LOOKBACK_LIMIT}`,
+  )
+  const previousSeasonKey = snapshotRows
+    .map((row) => row.season_key)
+    .find((seasonKey) => seasonKey && seasonKey !== currentSeasonKey && !seasonKey.startsWith('unknown') && !archivedKeys.has(seasonKey))
+
+  if (!previousSeasonKey) return null
+
+  const previousRows = snapshotRows.filter((row) => row.season_key === previousSeasonKey)
+  const rowsByCapturedAt = groupRowsByCapturedAt(previousRows)
+  const completeSnapshots = Object.entries(rowsByCapturedAt)
+    .filter(([, rows]) => activeGuildNames.every((guildName) => rows.some((row) => row.guild_name === guildName)))
+    .map(([capturedAt, rows]) => {
+      const seasonEndAt = rows.find((row) => row.raw_json?.seasonEndAt)?.raw_json?.seasonEndAt || null
+      const seasonEndTime = getTime(seasonEndAt)
+      const capturedTime = getTime(capturedAt)
+      return { capturedAt, capturedTime, rows, seasonEndTime }
+    })
+    .filter((snapshot) => snapshot.capturedTime !== null && snapshot.seasonEndTime !== null && snapshot.capturedTime <= snapshot.seasonEndTime)
+    .sort((a, b) => b.capturedTime - a.capturedTime)
+
+  const selectedSnapshot = completeSnapshots[0]
+  if (!selectedSnapshot) return null
+
+  const memberRows = await selectRows(
+    `member_snapshots?select=*&captured_at=eq.${encodeURIComponent(selectedSnapshot.capturedAt)}&guild_name=in.(${activeGuildFilter})`,
+  )
+  const archive = buildSeasonArchiveFromSnapshot(selectedSnapshot.rows, memberRows, previousSeasonKey, selectedSnapshot.capturedAt)
+  await upsertRows('season_archives', [archive], 'season_key')
+  await trimSeasonArchives()
+
+  return {
+    recoveredSeasonKey: previousSeasonKey,
+    snapshotAt: selectedSnapshot.capturedAt,
+    totalFailedCount: archive.total_failed_count,
+  }
+}
+
 async function trimSeasonArchives() {
   const archives = await selectRows(`season_archives?select=id&order=saved_at.desc&offset=${MAX_ARCHIVE_COUNT}`)
   if (!archives.length) return
@@ -193,15 +331,23 @@ export async function handler(event) {
     await insertRows('guild_snapshots', guildRows)
     await insertRows('member_snapshots', memberRows)
 
+    let archivedCurrentSeason = false
+    let recoveredArchive = null
+
     if (shouldArchiveNow(guilds, capturedAt)) {
       await upsertRows('season_archives', [buildSeasonArchive(guilds, capturedAt, seasonKey)], 'season_key')
       await trimSeasonArchives()
+      archivedCurrentSeason = true
     }
 
+    recoveredArchive = await archiveRecoveredPreviousSeason(seasonKey)
+
     return json(200, {
+      archivedCurrentSeason,
       capturedAt,
       guildCount: guildRows.length,
       memberCount: memberRows.length,
+      recoveredArchive,
       seasonKey,
     })
   } catch (error) {
