@@ -1479,65 +1479,67 @@ function MoveCandidatesPage({ guildStats, isAllScope, selectedEntry, selectedGui
               ))}
             </div>
 
-            <div className="staff-card-list compact-list">
-            {candidates.map((member, index) => (
-              <article className="staff-row-card move-card" key={`${member.currentGuild}-${member.nickname}-${member.recommendedGuild}`}>
-                <div className="member-title-row">
-                  <strong>{member.nickname}</strong>
-                  <span className="status-badge">우선 {index + 1} · {member.currentGuild} → {member.recommendedGuild}</span>
-                </div>
-                <dl className="mini-fields">
-                  <div>
-                    <dt>현재 소속</dt>
-                    <dd>{member.currentGuild}</dd>
-                  </div>
-                  <div>
-                    <dt>현재 점수</dt>
-                    <dd>{formatNumber(member.currentScore)}점</dd>
-                  </div>
-                  <div>
-                    <dt>추천 이동</dt>
-                    <dd>{member.recommendedGuild}</dd>
-                  </div>
-                  <div>
-                    <dt>목표 기준</dt>
-                    <dd>{member.targetCutScore.toLocaleString()}점</dd>
-                  </div>
-                  <div>
-                    <dt>예상 종료</dt>
-                    <dd>{formatProjectedScore(member.projectedFinalScore)}</dd>
-                  </div>
-                  <div>
-                    <dt>남은 시즌</dt>
-                    <dd>{formatRemainingHours(member.remainingHours)}</dd>
-                  </div>
-                  <div>
-                    <dt>사용 기준</dt>
-                    <dd>{member.projectionBasis}</dd>
-                  </div>
-                  <div>
-                    <dt>추천 기준</dt>
-                    <dd>{member.recommendationBasis}</dd>
-                  </div>
-                  <div>
-                    <dt>WPH</dt>
-                    <dd>{formatWph(member)}</dd>
-                  </div>
-                </dl>
-                <p>{member.reason}</p>
-                {SHOW_PROJECTION_DEBUG && (
-                  <p className="prediction-debug">
-                    previousScore: {formatNumber(member.previousScore)} · currentScore: {formatNumber(member.currentScore)} ·
-                    scoreDelta: {formatNumber(member.scoreDelta)} · timeDeltaHours:{' '}
-                    {typeof member.timeDeltaHours === 'number' ? member.timeDeltaHours.toFixed(2) : '-'} · scorePerHour:{' '}
-                    {typeof member.scorePerHour === 'number' ? Math.round(member.scorePerHour).toLocaleString() : '-'} ·
-                    remainingHours: {typeof member.remainingHours === 'number' ? member.remainingHours.toFixed(2) : '-'} ·
-                    projectedFinalScore: {formatNumber(member.projectedFinalScore)} · projectionBasis: {member.projectionBasis}
-                  </p>
-                )}
-              </article>
-            ))}
-            </div>
+            {!isAllScope && (
+              <div className="staff-card-list compact-list">
+                {candidates.map((member, index) => (
+                  <article className="staff-row-card move-card" key={`${member.currentGuild}-${member.nickname}-${member.recommendedGuild}`}>
+                    <div className="member-title-row">
+                      <strong>{member.nickname}</strong>
+                      <span className="status-badge">우선 {index + 1} · {member.currentGuild} → {member.recommendedGuild}</span>
+                    </div>
+                    <dl className="mini-fields">
+                      <div>
+                        <dt>현재 소속</dt>
+                        <dd>{member.currentGuild}</dd>
+                      </div>
+                      <div>
+                        <dt>현재 점수</dt>
+                        <dd>{formatNumber(member.currentScore)}점</dd>
+                      </div>
+                      <div>
+                        <dt>추천 이동</dt>
+                        <dd>{member.recommendedGuild}</dd>
+                      </div>
+                      <div>
+                        <dt>목표 기준</dt>
+                        <dd>{member.targetCutScore.toLocaleString()}점</dd>
+                      </div>
+                      <div>
+                        <dt>예상 종료</dt>
+                        <dd>{formatProjectedScore(member.projectedFinalScore)}</dd>
+                      </div>
+                      <div>
+                        <dt>남은 시즌</dt>
+                        <dd>{formatRemainingHours(member.remainingHours)}</dd>
+                      </div>
+                      <div>
+                        <dt>사용 기준</dt>
+                        <dd>{member.projectionBasis}</dd>
+                      </div>
+                      <div>
+                        <dt>추천 기준</dt>
+                        <dd>{member.recommendationBasis}</dd>
+                      </div>
+                      <div>
+                        <dt>WPH</dt>
+                        <dd>{formatWph(member)}</dd>
+                      </div>
+                    </dl>
+                    <p>{member.reason}</p>
+                    {SHOW_PROJECTION_DEBUG && (
+                      <p className="prediction-debug">
+                        previousScore: {formatNumber(member.previousScore)} · currentScore: {formatNumber(member.currentScore)} ·
+                        scoreDelta: {formatNumber(member.scoreDelta)} · timeDeltaHours:{' '}
+                        {typeof member.timeDeltaHours === 'number' ? member.timeDeltaHours.toFixed(2) : '-'} · scorePerHour:{' '}
+                        {typeof member.scorePerHour === 'number' ? Math.round(member.scorePerHour).toLocaleString() : '-'} ·
+                        remainingHours: {typeof member.remainingHours === 'number' ? member.remainingHours.toFixed(2) : '-'} ·
+                        projectedFinalScore: {formatNumber(member.projectedFinalScore)} · projectionBasis: {member.projectionBasis}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
           </>
         )}
       </section>
