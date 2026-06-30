@@ -1343,17 +1343,54 @@
 
 .archive-picker-options {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   max-height: 280px;
-  padding: 8px;
+  padding: 6px;
   overflow-y: auto;
-  background: rgba(5, 8, 14, 0.42);
+  background: rgba(5, 8, 14, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
 }
 
 .archive-picker-options .archive-card {
-  padding: 9px 10px;
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  color: #151922;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dfe3ea;
+  box-shadow: none;
+}
+
+.archive-picker-options .archive-card.active {
+  color: #0b0e16;
+  background: var(--yellow);
+  border-color: #d2a70d;
+}
+
+.archive-option-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.archive-option-line strong,
+.archive-option-line small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-option-line small {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.archive-picker-options .archive-card.active .archive-option-line small {
+  color: rgba(11, 14, 22, 0.72);
 }
 
 .archive-season-main {

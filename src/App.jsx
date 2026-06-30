@@ -1317,6 +1317,29 @@ function AttentionPage({ archiveStatus, archives }) {
               시즌 선택 · {formatSeasonButtonLabel(selectedArchive)}
             </button>
 
+            {isSeasonPickerOpen && (
+              <div className="archive-picker-options">
+                {archives.map((archive) => {
+                  return (
+                    <button
+                      type="button"
+                      className={`archive-card ${selectedArchive?.seasonKey === archive.seasonKey ? 'active' : ''}`}
+                      key={archive.seasonKey}
+                      onClick={() => {
+                        setSelectedArchiveKey(archive.seasonKey)
+                        setIsSeasonPickerOpen(false)
+                      }}
+                    >
+                      <span className="archive-option-line">
+                        <strong>{formatSeasonButtonLabel(archive)}</strong>
+                        <small>{formatDateTime(archive.savedAt)} 저장</small>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             <div className="archive-selected-card">
               <span className="archive-season-main">
                 <small>선택된 시즌</small>
@@ -1329,33 +1352,6 @@ function AttentionPage({ archiveStatus, archives }) {
                 미달 {getArchiveFailureGroups(selectedArchive).reduce((sum, group) => sum + group.failedMembers.length, 0)}명
               </span>
             </div>
-
-            {isSeasonPickerOpen && (
-              <div className="archive-picker-options">
-                {archives.map((archive) => {
-                  const groups = getArchiveFailureGroups(archive)
-                  const failedCount = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
-                  return (
-                    <button
-                      type="button"
-                      className={`archive-card ${selectedArchive?.seasonKey === archive.seasonKey ? 'active' : ''}`}
-                      key={archive.seasonKey}
-                      onClick={() => {
-                        setSelectedArchiveKey(archive.seasonKey)
-                        setIsSeasonPickerOpen(false)
-                      }}
-                    >
-                      <span className="archive-season-main">
-                        <strong>{formatSeasonButtonLabel(archive)}</strong>
-                        <small>{formatDateTime(archive.savedAt)} 저장</small>
-                        <small className="archive-tier-counts">{getArchiveFailureCountText(groups)}</small>
-                      </span>
-                      <span className="archive-fail-count">미달 {failedCount}명</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
           </div>
         )}
       </section>
