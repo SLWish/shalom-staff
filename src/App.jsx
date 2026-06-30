@@ -128,9 +128,8 @@ function getMemberCutMeta(member, guild, cutScore) {
   }
 
   const seasonDuration = seasonEndTime - seasonStartTime
-  const remainingDuration = seasonEndTime - firstSeenTime
 
-  if (Date.now() > seasonEndTime || seasonDuration <= 0 || remainingDuration <= 0 || firstSeenTime <= seasonStartTime) {
+  if (Date.now() > seasonEndTime || seasonDuration <= 0 || firstSeenTime <= seasonStartTime) {
     return {
       effectiveCutScore: cutScore,
       isProratedCut: false,
@@ -138,7 +137,9 @@ function getMemberCutMeta(member, guild, cutScore) {
     }
   }
 
-  const effectiveCutScore = Math.max(0, Math.ceil(cutScore * (remainingDuration / seasonDuration)))
+  const elapsedDays = Math.max(0, Math.floor((firstSeenTime - seasonStartTime) / 86400000))
+  const cutRatio = Math.max(0, 1 - elapsedDays * 0.2)
+  const effectiveCutScore = Math.ceil(cutScore * cutRatio)
 
   return {
     effectiveCutScore: Math.min(cutScore, effectiveCutScore),
@@ -650,6 +651,35 @@ function getArchiveFailureGroups(archive) {
   })
 }
 
+function getArchiveFailureCountText(groups) {
+  return groups.map((group, index) => `${index + 1}군 ${group.failedMembers.length}명`).join(' · ')
+}
+
+function buildArchiveNoticeText(archive, groups) {
+  if (!archive) return ''
+
+  const lines = [
+    '[ShaLom 시즌 컷 미달자 안내]',
+    `${formatSeasonButtonLabel(archive)} 기준`,
+    `총 미달자: ${groups.reduce((sum, group) => sum + group.failedMembers.length, 0)}명`,
+    '',
+  ]
+
+  groups.forEach((group, index) => {
+    lines.push(`[${index + 1}군 ${group.guildName} / 기준 ${formatNumber(group.cutScore)}]`)
+    if (group.failedMembers.length === 0) {
+      lines.push('전원 기준 달성')
+    } else {
+      group.failedMembers.forEach((member) => {
+        lines.push(`${member.nickname} ${formatNumber(member.score)}점 / ${formatNumber(member.shortage)} 부족`)
+      })
+    }
+    lines.push('')
+  })
+
+  return lines.join('\n').trim()
+}
+
 function StaffNotice() {
   return (
     <section className="defeat-notice">
@@ -1056,10 +1086,21 @@ function FailureGroupList({ groups }) {
 }
 
 function ArchiveDetail({ archive }) {
+  const [copyStatus, setCopyStatus] = useState('')
   if (!archive) return null
 
   const groups = getArchiveFailureGroups(archive)
   const failedCount = groups.reduce((sum, group) => sum + group.failedMembers.length, 0)
+  const noticeText = buildArchiveNoticeText(archive, groups)
+
+  const copyNoticeText = async () => {
+    try {
+      await navigator.clipboard.writeText(noticeText)
+      setCopyStatus('복사 완료')
+    } catch {
+      setCopyStatus('복사 실패')
+    }
+  }
 
   return (
     <section className="staff-section archive-history-detail">
@@ -1072,6 +1113,18 @@ function ArchiveDetail({ archive }) {
         <span>저장: {formatDateTime(archive.savedAt)} · 자동 저장</span>
       </div>
       <FailureGroupList groups={groups} />
+      <div className="copy-box archive-copy-box">
+        <div className="copy-box-head">
+          <strong>공지방 안내용</strong>
+          <div className="copy-actions">
+            {copyStatus && <span>{copyStatus}</span>}
+            <button type="button" onClick={copyNoticeText}>
+              복사
+            </button>
+          </div>
+        </div>
+        <pre>{noticeText}</pre>
+      </div>
     </section>
   )
 }
@@ -1112,6 +1165,7 @@ function AttentionPage({ archiveStatus, archives }) {
                   <span className="archive-season-main">
                     <strong>{formatSeasonButtonLabel(archive)}</strong>
                     <small>{formatDateTime(archive.savedAt)} 저장</small>
+                    <small className="archive-tier-counts">{getArchiveFailureCountText(groups)}</small>
                   </span>
                   <span className="archive-fail-count">미달 {failedCount}명</span>
                 </button>

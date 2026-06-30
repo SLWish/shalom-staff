@@ -1212,15 +1212,22 @@
 
 .archive-season-main {
   display: grid;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
-.archive-season-main strong,
-.archive-season-main small {
+.archive-season-main strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.archive-season-main small {
+  line-height: 1.35;
+}
+
+.archive-tier-counts {
+  color: var(--green) !important;
 }
 
 .archive-fail-count {
@@ -1229,6 +1236,10 @@
   color: #0b0e16 !important;
   background: var(--yellow);
   border-radius: 999px;
+}
+
+.archive-copy-box {
+  margin-top: 14px;
 }
 
 .member-list,
