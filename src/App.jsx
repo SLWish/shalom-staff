@@ -1400,7 +1400,14 @@ function AttentionPage({ archiveStatus, archives }) {
             <button
               type="button"
               className={`archive-picker-strip ${isSeasonPickerOpen ? 'active' : ''}`}
-              onClick={() => setIsSeasonPickerOpen((open) => !open)}
+              onClick={() => {
+                if (selectedArchive) {
+                  setSelectedArchiveKey(null)
+                  setIsSeasonPickerOpen(false)
+                  return
+                }
+                setIsSeasonPickerOpen((open) => !open)
+              }}
             >
               {selectedArchive ? `시즌 선택 · ${formatSeasonButtonLabel(selectedArchive)}` : '시즌을 선택해주세요'}
             </button>
@@ -1553,14 +1560,14 @@ function WphReportPage() {
               <div className="wph-detail-card">
                 <strong>WPH Info</strong>
                 <ol>
-                  {selectedReport.members.map((member, index) => (
+                  {selectedReport.members.map((member) => (
                     <li key={`${selectedGuildName}-${member.nickname}-detail`}>
-                      <b>{index + 1}. {member.nickname}:</b>{' '}
+                      <b>{member.nickname}:</b>{' '}
                       {(member.detailHourly || []).join(' | ') || '0'}
                     </li>
                   ))}
                 </ol>
-                <small>55분 스냅샷 간 wave 증가량을 6단위 기준으로 펼쳐 표시합니다.</small>
+                <small>점프 단위는 API에 없어 55분 스냅샷 간 wave 증가량만 표시합니다.</small>
               </div>
             )}
           </div>

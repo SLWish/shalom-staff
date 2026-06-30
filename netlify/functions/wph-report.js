@@ -120,10 +120,7 @@ function getSkipCount(hourlyValues, averageWph) {
 }
 
 function formatWaveDetail(value) {
-  if (typeof value !== 'number') return '0'
-  const base = Math.floor(value / 6)
-  const remainder = value % 6
-  return remainder > 0 ? `${base}x6+${remainder}` : `${base}x6`
+  return typeof value === 'number' ? String(value) : '0'
 }
 
 function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
