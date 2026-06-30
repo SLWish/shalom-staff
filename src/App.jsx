@@ -16,6 +16,7 @@ import {
 } from './services/scoreHistory.js'
 import { createSeasonArchive, readSeasonArchives, shouldAutoArchive, upsertSeasonArchive } from './services/seasonArchive.js'
 import { fetchSharedSeasonArchives } from './services/serverHistoryApi.js'
+import { fetchSeasonSummary } from './services/seasonSummaryApi.js'
 import { getLatestWphRecords } from './services/wphHistory.js'
 import { fetchWphReport } from './services/wphReportApi.js'
 
@@ -469,6 +470,11 @@ function formatWphScoreProjection(member) {
   if (typeof member.currentScore !== 'number') return '점수: 확인 불가'
   if (typeof member.projectedFinalScore !== 'number') return `점수: ${formatNumber(member.currentScore)} -> 예측 대기`
   return `점수: ${formatNumber(member.currentScore)} -> ${formatNumber(member.projectedFinalScore)} 예상`
+}
+
+function formatSummaryArray(values) {
+  if (!Array.isArray(values) || values.length === 0) return '0'
+  return values.map((value) => (typeof value === 'number' ? formatNumber(value) : '-')).join(' / ')
 }
 
 function formatWphMinute(value) {
@@ -1287,12 +1293,12 @@ function AttentionPage({ archiveStatus, archives }) {
   const selectedArchive = archives.find((archive) => archive.seasonKey === selectedArchiveKey) || archives[0] || null
 
   return (
-    <PageShell eyebrow="Season Records" title="시즌 기록">
+    <PageShell eyebrow="Warning Records" title="경고 기록">
       <section className="staff-section">
         <div className="section-title archive-title-row">
           <div>
             <span>시즌 종료 직전 자동 저장</span>
-            <h2>ShaLom 길드 시즌 기록</h2>
+            <h2>ShaLom 길드 경고 기록</h2>
           </div>
         </div>
         <p className="page-note">
@@ -1365,6 +1371,7 @@ function AttentionPage({ archiveStatus, archives }) {
 function WphReportPage() {
   const [selectedGuildName, setSelectedGuildName] = useState('ShaLom')
   const [report, setReport] = useState(null)
+  const [showDetailInfo, setShowDetailInfo] = useState(false)
   const [status, setStatus] = useState('loading')
 
   useEffect(() => {
@@ -1406,7 +1413,10 @@ function WphReportPage() {
               type="button"
               className={selectedGuildName === guild.guildName ? 'active' : ''}
               key={guild.guildName}
-              onClick={() => setSelectedGuildName(guild.guildName)}
+              onClick={() => {
+                setSelectedGuildName(guild.guildName)
+                setShowDetailInfo(false)
+              }}
             >
               {index + 1}군 {guild.guildName} {getRankLabel(guild.guildName)}
             </button>
@@ -1452,6 +1462,164 @@ function WphReportPage() {
                 </li>
               ))}
             </ol>
+            <button type="button" className="wph-detail-toggle" onClick={() => setShowDetailInfo((open) => !open)}>
+              {showDetailInfo ? '상세 정보 닫기' : 'View Detailed Info'}
+            </button>
+            {showDetailInfo && (
+              <div className="wph-detail-card">
+                <strong>WPH Info</strong>
+                <ol>
+                  {selectedReport.members.map((member, index) => (
+                    <li key={`${selectedGuildName}-${member.nickname}-detail`}>
+                      <b>{index + 1}. {member.nickname}:</b>{' '}
+                      {(member.detailHourly || []).join(' | ') || '0'}
+                    </li>
+                  ))}
+                </ol>
+                <small>55분 스냅샷 간 wave 증가량을 6단위 기준으로 펼쳐 표시합니다.</small>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+      <StaffNotice />
+    </PageShell>
+  )
+}
+
+function SeasonSummaryPage() {
+  const [selectedGuildName, setSelectedGuildName] = useState('ShaLom')
+  const [selectedSeasonKey, setSelectedSeasonKey] = useState(null)
+  const [isSeasonPickerOpen, setIsSeasonPickerOpen] = useState(false)
+  const [payload, setPayload] = useState(null)
+  const [status, setStatus] = useState('loading')
+
+  useEffect(() => {
+    let isMounted = true
+
+    fetchSeasonSummary(selectedSeasonKey)
+      .then((data) => {
+        if (!isMounted) return
+        setPayload(data)
+        setStatus('ready')
+        if (!selectedSeasonKey && data.seasons?.[0]?.seasonKey) {
+          setSelectedSeasonKey(data.seasons[0].seasonKey)
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setStatus('error')
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedSeasonKey])
+
+  const seasons = payload?.seasons || []
+  const selectedSeason = seasons.find((season) => season.seasonKey === selectedSeasonKey) || seasons[0] || null
+  const selectedSummary = payload?.summary?.guilds?.[selectedGuildName] || null
+  const summarySeason = payload?.summary?.season || selectedSeason
+  const summaryGuilds = activeGuildConfigs.slice(0, 3)
+
+  return (
+    <PageShell eyebrow="Season Summary" title="시즌 기록">
+      <section className="staff-section">
+        <div className="section-title">
+          <span>1~3군 WPH 요약</span>
+          <h2>시즌별 활동 기록</h2>
+        </div>
+        <p className="page-note">
+          저장된 55분 스냅샷 기준으로 계산합니다.
+          <br />
+          기록이 쌓인 시즌부터 요약이 표시됩니다.
+        </p>
+        {seasons.length > 0 && (
+          <div className="archive-season-picker">
+            <button
+              type="button"
+              className={`archive-picker-strip ${isSeasonPickerOpen ? 'active' : ''}`}
+              onClick={() => setIsSeasonPickerOpen((open) => !open)}
+            >
+              시즌 선택 · {selectedSeason?.label || '-'}
+            </button>
+
+            {isSeasonPickerOpen && (
+              <div className="archive-picker-options">
+                {seasons.map((season) => (
+                  <button
+                    type="button"
+                    className={`archive-card ${selectedSeason?.seasonKey === season.seasonKey ? 'active' : ''}`}
+                    key={season.seasonKey}
+                    onClick={() => {
+                      setStatus('loading')
+                      setSelectedSeasonKey(season.seasonKey)
+                      setIsSeasonPickerOpen(false)
+                    }}
+                  >
+                    <span className="archive-option-line">
+                      <strong>{season.label}</strong>
+                      <small>{formatShortDateTime(season.endAt)} 종료</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="guild-tabs wph-guild-tabs">
+          {summaryGuilds.map((guild, index) => (
+            <button
+              type="button"
+              className={selectedGuildName === guild.guildName ? 'active' : ''}
+              key={guild.guildName}
+              onClick={() => setSelectedGuildName(guild.guildName)}
+            >
+              {index + 1}군 {guild.guildName}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="staff-section">
+        {status === 'loading' ? (
+          <LoadingState guildName="시즌 기록" />
+        ) : status === 'error' ? (
+          <EmptyState>시즌 기록 불러오기 실패</EmptyState>
+        ) : !selectedSummary || selectedSummary.members.length === 0 ? (
+          <EmptyState>저장된 시즌 WPH 기록 없음</EmptyState>
+        ) : (
+          <div className="season-summary-card">
+            <div className="season-summary-head">
+              <strong>{selectedGuildName} Season Summary</strong>
+              <span>{summarySeason?.label}</span>
+            </div>
+            <ol className="season-summary-list">
+              {selectedSummary.members.map((member, index) => (
+                <li key={`${selectedGuildName}-${member.nickname}-season-summary`}>
+                  <strong>
+                    {index + 1}. {member.nickname}: {formatNumber(member.totalWaves)} waves
+                  </strong>
+                  <span>Passive WPH: {formatNumber(member.averageWph)} ({formatSummaryArray(member.passiveWphByDay)})</span>
+                  <span>Skip WPH: {formatNumber(member.skipWph)} ({formatSummaryArray(member.skipWphByDay)})</span>
+                  <span>Passive Hrs: {formatNumber(member.passiveHours)} ({formatSummaryArray(member.passiveHoursByDay)})</span>
+                  <span>Skip Hrs: {formatNumber(member.skipHours)} ({formatSummaryArray(member.skipHoursByDay)})</span>
+                  <span>Orange Hrs: {formatNumber(member.orangeHours)} ({formatSummaryArray(member.orangeHoursByDay)})</span>
+                  <span>Down Hrs: {formatNumber(member.downHours)} ({formatSummaryArray(member.downHoursByDay)})</span>
+                  <span>Below Passive Hrs: {formatNumber(member.belowPassiveHours)} ({formatSummaryArray(member.belowPassiveHoursByDay)})</span>
+                </li>
+              ))}
+            </ol>
+            <div className="season-summary-total">
+              <strong>Guild Avg WPH: {formatNumber(selectedSummary.guildAverageWph)}</strong>
+              <span>Guild Avg Passive WPH: {formatNumber(selectedSummary.guildAverageWph)}</span>
+              <span>Guild Avg Skip WPH: {formatNumber(selectedSummary.guildSkipWph)}</span>
+              <span>Guild Passive Hrs: {formatNumber(selectedSummary.guildPassiveHours)}</span>
+              <span>Guild Skip Hrs: {formatNumber(selectedSummary.guildSkipHours)}</span>
+              <span>Guild Orange Hrs: {formatNumber(selectedSummary.guildOrangeHours)}</span>
+              <span>Guild Down Hrs: {formatNumber(selectedSummary.guildDownHours)}</span>
+              <span>Guild Below Passive Hrs: {formatNumber(selectedSummary.guildBelowPassiveHours)}</span>
+            </div>
           </div>
         )}
       </section>
@@ -1924,7 +2092,7 @@ function App() {
       {isMenuOpen && <button type="button" className="drawer-backdrop" aria-label="메뉴 닫기" onClick={() => setIsMenuOpen(false)} />}
 
       <main className="main-content">
-        {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && activePage !== 'wph' && (
+        {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && activePage !== 'wph' && activePage !== 'season-summary' && (
           <>
             {activePage === 'moves' && (
               <button
@@ -1971,6 +2139,7 @@ function App() {
           />
         )}
         {activePage === 'wph' && <WphReportPage />}
+        {activePage === 'season-summary' && <SeasonSummaryPage />}
       </main>
     </div>
   )

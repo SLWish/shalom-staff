@@ -1524,6 +1524,119 @@
   color: #aeb6c6 !important;
 }
 
+.wph-detail-toggle {
+  justify-self: start;
+  min-height: 38px;
+  padding: 9px 14px;
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  background: #5865f2;
+  border: 0;
+  border-radius: 6px;
+}
+
+.wph-detail-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: #20232e;
+  border-left: 4px solid #25e85f;
+  border-radius: 0 10px 10px 0;
+}
+
+.wph-detail-card strong {
+  color: var(--heading);
+  font-size: 16px;
+}
+
+.wph-detail-card ol {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+  margin: 0;
+}
+
+.wph-detail-card li {
+  color: #c9ced9;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.wph-detail-card b {
+  color: #f2f4f8;
+}
+
+.wph-detail-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.season-summary-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  background: #20232e;
+  border-left: 4px solid #35a8ff;
+  border-radius: 0 10px 10px 0;
+}
+
+.season-summary-head {
+  display: grid;
+  gap: 4px;
+}
+
+.season-summary-head strong {
+  color: var(--heading);
+  font-size: 17px;
+}
+
+.season-summary-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.season-summary-list {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.season-summary-list li {
+  display: grid;
+  gap: 5px;
+  color: #c9ced9;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.season-summary-list strong {
+  color: var(--heading);
+  font-size: 15px;
+}
+
+.season-summary-total {
+  display: grid;
+  gap: 5px;
+  padding-top: 12px;
+  color: #c9ced9;
+  font-size: 13px;
+  font-weight: 800;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.season-summary-total strong {
+  color: var(--heading);
+  font-size: 15px;
+}
+
 .member-list,
 .warning-list,
 .check-list,

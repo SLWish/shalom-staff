@@ -50,8 +50,8 @@ export const menuItems = [
   { id: 'status', label: '길드 현황', icon: 'status' },
   { id: 'new-members', label: '신규 확인', icon: 'alert' },
   { id: 'members', label: '전체 인원', icon: 'status' },
-  { id: 'attention', label: '시즌 기록', icon: 'alert' },
+  { id: 'attention', label: '경고 기록', icon: 'alert' },
   { id: 'wph', label: 'WPH', icon: 'status' },
-
   { id: 'moves', label: '이동 후보', icon: 'move' },
+  { id: 'season-summary', label: '시즌 기록', icon: 'status' },
 ]

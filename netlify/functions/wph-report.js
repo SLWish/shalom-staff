@@ -119,6 +119,13 @@ function getSkipCount(hourlyValues, averageWph) {
   }, 0)
 }
 
+function formatWaveDetail(value) {
+  if (typeof value !== 'number') return '0'
+  const base = Math.floor(value / 6)
+  const remainder = value % 6
+  return remainder > 0 ? `${base}x6+${remainder}` : `${base}x6`
+}
+
 function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
   const latestSnapshot = snapshots.at(-1)
   const firstSnapshot = snapshots[0]
@@ -180,6 +187,7 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
       return {
         averageWph,
         currentScore,
+        detailHourly: hourly.map(formatWaveDetail),
         downMinutes,
         endWave,
         hourly,
