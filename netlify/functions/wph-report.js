@@ -206,9 +206,7 @@ export async function handler() {
       ),
       fetchGuildRanks(),
     ])
-    const latestSeasonKey = [...rows].reverse().find((row) => row.season_key)?.season_key
-    const currentSeasonRows = latestSeasonKey ? rows.filter((row) => row.season_key === latestSeasonKey) : rows
-    const snapshotsByGuild = chooseSnapshots(currentSeasonRows)
+    const snapshotsByGuild = chooseSnapshots(rows)
     const guilds = Object.fromEntries(
       REPORT_GUILDS.map((guildName) => {
         const report = buildGuildReport(guildName, snapshotsByGuild[guildName] || [])
