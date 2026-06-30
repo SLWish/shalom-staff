@@ -261,13 +261,19 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
         const currentWave = Number(current?.wave)
         const previousScore = Number(previous?.score)
         const currentScoreForSlot = Number(current?.score)
+        const previousPersonalScore = Number(previous?.raw_json?.personalScore)
+        const currentPersonalScore = Number(current?.raw_json?.personalScore)
         const waveDelta = Number.isFinite(previousWave) && Number.isFinite(currentWave) ? Math.max(0, currentWave - previousWave) : null
         const scoreDeltaForSlot =
           Number.isFinite(previousScore) && Number.isFinite(currentScoreForSlot) ? Math.max(0, currentScoreForSlot - previousScore) : null
+        const personalScoreDeltaForSlot =
+          Number.isFinite(previousPersonalScore) && Number.isFinite(currentPersonalScore)
+            ? Math.max(0, currentPersonalScore - previousPersonalScore)
+            : null
         if (waveDelta !== null && waveDelta > MAX_NORMAL_WPH) {
-          hourly.push({ scoreDelta: scoreDeltaForSlot, waveDelta: null })
+          hourly.push({ scoreDelta: scoreDeltaForSlot, detailScoreDelta: personalScoreDeltaForSlot, waveDelta: null })
         } else {
-          hourly.push({ scoreDelta: scoreDeltaForSlot, waveDelta })
+          hourly.push({ scoreDelta: scoreDeltaForSlot, detailScoreDelta: personalScoreDeltaForSlot, waveDelta })
         }
       }
 
@@ -292,7 +298,7 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
       return {
         averageWph,
         currentScore,
-        detailHourly: hourly.map((item) => formatWaveDetail(item.waveDelta, item.scoreDelta)),
+        detailHourly: hourly.map((item) => formatWaveDetail(item.waveDelta, item.detailScoreDelta)),
         downMinutes,
         endWave,
         hourly: hourlyValues,
@@ -359,7 +365,7 @@ export async function handler() {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString()
     const [rows, guildRows, ranks] = await Promise.all([
       selectRows(
-        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=3000`,
+        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key,raw_json&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=3000`,
       ),
       selectRows(
         `guild_snapshots?select=guild_name,captured_at,raw_json&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=100`,
