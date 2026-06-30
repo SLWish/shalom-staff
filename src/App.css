@@ -1242,6 +1242,76 @@
   margin-top: 14px;
 }
 
+.wph-guild-tabs {
+  margin-top: 12px;
+}
+
+.wph-report-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background: #11141d;
+  border-left: 4px solid #35a8ff;
+  border-radius: 0 10px 10px 0;
+}
+
+.wph-report-head {
+  display: grid;
+  gap: 4px;
+}
+
+.wph-report-head strong {
+  color: var(--heading);
+  font-size: 17px;
+}
+
+.wph-report-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.wph-report-list {
+  display: grid;
+  gap: 13px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.wph-report-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.wph-member-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wph-member-line strong {
+  color: var(--heading);
+  font-size: 15px;
+}
+
+.wph-member-line span,
+.wph-report-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.wph-report-list p {
+  padding-left: 16px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
 .member-list,
 .warning-list,
 .check-list,

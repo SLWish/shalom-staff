@@ -17,6 +17,7 @@ import {
 import { createSeasonArchive, readSeasonArchives, shouldAutoArchive, upsertSeasonArchive } from './services/seasonArchive.js'
 import { fetchSharedSeasonArchives } from './services/serverHistoryApi.js'
 import { getLatestWphRecords } from './services/wphHistory.js'
+import { fetchWphReport } from './services/wphReportApi.js'
 
 const INACTIVE_HOURS_THRESHOLD = 6
 const GUILD_ORDER = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
@@ -415,6 +416,25 @@ function getRemainingHours(seasonEndAt) {
 
 function formatNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : '-'
+}
+
+function formatWphSlotTime(value) {
+  if (!value) return '-'
+  return new Date(getDateTimeValue(value)).toLocaleString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Seoul',
+  })
+}
+
+function formatWphMinute(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
+  if (value < 60) return `${value}m`
+  const hours = Math.floor(value / 60)
+  const minutes = value % 60
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
 }
 
 function formatProjectedScore(value) {
@@ -1181,6 +1201,97 @@ function AttentionPage({ archiveStatus, archives }) {
   )
 }
 
+function WphReportPage() {
+  const [selectedGuildName, setSelectedGuildName] = useState('ShaLom')
+  const [report, setReport] = useState(null)
+  const [status, setStatus] = useState('loading')
+
+  useEffect(() => {
+    let isMounted = true
+    fetchWphReport()
+      .then((payload) => {
+        if (!isMounted) return
+        setReport(payload)
+        setStatus('ready')
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setStatus('error')
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const selectedReport = report?.guilds?.[selectedGuildName] || null
+  const reportGuilds = activeGuildConfigs.slice(0, 3)
+
+  return (
+    <PageShell eyebrow="Guild Waves" title="WPH">
+      <section className="staff-section">
+        <div className="section-title">
+          <span>55분 기준</span>
+          <h2>길드 WPH</h2>
+        </div>
+        <div className="guild-tabs wph-guild-tabs">
+          {reportGuilds.map((guild, index) => (
+            <button
+              type="button"
+              className={selectedGuildName === guild.guildName ? 'active' : ''}
+              key={guild.guildName}
+              onClick={() => setSelectedGuildName(guild.guildName)}
+            >
+              {index + 1}군 {guild.guildName}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="staff-section">
+        {status === 'loading' ? (
+          <LoadingState guildName="WPH" />
+        ) : status === 'error' ? (
+          <EmptyState>WPH 기록 불러오기 실패</EmptyState>
+        ) : !selectedReport || selectedReport.members.length === 0 ? (
+          <EmptyState>WPH 기록 없음</EmptyState>
+        ) : (
+          <div className="wph-report-card">
+            <div className="wph-report-head">
+              <strong>🌊 {selectedGuildName} Guild Waves 🌊</strong>
+              <span>
+                {formatWphSlotTime(selectedReport.windowStartAt)} to {formatWphSlotTime(selectedReport.windowEndAt)}
+              </span>
+            </div>
+            <ol className="wph-report-list">
+              {selectedReport.members.map((member, index) => (
+                <li key={`${selectedGuildName}-${member.nickname}`}>
+                  <div className="wph-member-line">
+                    <strong>
+                      {index + 1}. {member.nickname}
+                    </strong>
+                    <span>
+                      {member.skips} skips, {formatWphMinute(member.downMinutes)} down
+                    </span>
+                  </div>
+                  <p>
+                    {member.hourly.map((value) => (typeof value === 'number' ? formatNumber(value) : '-')).join(' | ')} WPH{' '}
+                    {formatNumber(member.averageWph)}
+                  </p>
+                  <p>
+                    Waves: {formatNumber(member.startWave)} -&gt; {formatNumber(member.endWave)}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </section>
+      <StaffNotice />
+    </PageShell>
+  )
+}
+
 function MoveCandidatesPage({ selectedEntry, selectedGuildName }) {
   const { guild, staffData } = selectedEntry
   return (
@@ -1579,7 +1690,7 @@ function App() {
       {isMenuOpen && <button type="button" className="drawer-backdrop" aria-label="메뉴 닫기" onClick={() => setIsMenuOpen(false)} />}
 
       <main className="main-content">
-        {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && (
+        {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && activePage !== 'wph' && (
           <>
             <GuildSelector guilds={activeGuilds} selectedGuildName={selectedGuildName} onChange={handleGuildChange} />
             <DataNotice state={getApiNotice(selectedGuildName, selectedEntry.guild.apiState)} />
@@ -1603,6 +1714,7 @@ function App() {
           />
         )}
         {activePage === 'moves' && <MoveCandidatesPage selectedEntry={selectedEntry} selectedGuildName={selectedGuildName} />}
+        {activePage === 'wph' && <WphReportPage />}
       </main>
     </div>
   )
