@@ -1895,14 +1895,18 @@ function App() {
       <main className="main-content">
         {activePage !== 'attention' && activePage !== 'new-members' && activePage !== 'members' && activePage !== 'wph' && (
           <>
+            {activePage === 'moves' && (
+              <button
+                type="button"
+                className={`move-scope-strip ${moveScope === MOVE_SCOPE_ALL ? 'active' : ''}`}
+                onClick={() => handleGuildChange(MOVE_SCOPE_ALL)}
+              >
+                총 요약 · 1~4군 전체 이동 후보
+              </button>
+            )}
             <GuildSelector
-              extraItems={
-                activePage === 'moves'
-                  ? [{ description: '전체 후보', label: '총 요약', value: MOVE_SCOPE_ALL }]
-                  : []
-              }
               guilds={activeGuilds}
-              selectedGuildName={activePage === 'moves' ? moveScope : selectedGuildName}
+              selectedGuildName={activePage === 'moves' && moveScope === MOVE_SCOPE_ALL ? '' : selectedGuildName}
               onChange={handleGuildChange}
             />
             {!(activePage === 'moves' && moveScope === MOVE_SCOPE_ALL) && (

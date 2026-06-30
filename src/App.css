@@ -117,6 +117,28 @@
   opacity: 0.76;
 }
 
+.move-scope-strip {
+  width: 100%;
+  min-height: 38px;
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(3, 7, 18, 0.12);
+}
+
+.move-scope-strip.active {
+  color: #0b0e16;
+  background: var(--yellow);
+  border-color: #d2a70d;
+}
+
 .data-notice,
 .cut-score-panel,
 .refresh-panel,
