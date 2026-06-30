@@ -119,46 +119,92 @@ function getSkipCount(hourlyValues, averageWph) {
   }, 0)
 }
 
-function getClosestAutoRatioScore(autoExtra, scoreDelta) {
+function getAutoFit(autoExtra, scoreDelta) {
   const ratio = autoExtra / scoreDelta
-  const expectedRatios = [0, 0.2, 0.4, 0.6]
-  return Math.min(...expectedRatios.map((expected) => Math.abs(ratio - expected)))
+  const expectedRatios = [
+    { label: 'none', ratio: 0 },
+    { label: 'orc', ratio: 0.2 },
+    { label: 'female', ratio: 0.4 },
+    { label: 'orc+female', ratio: 0.6 },
+  ]
+  return expectedRatios
+    .map((expected) => ({
+      ...expected,
+      error: Math.abs(ratio - expected.ratio),
+    }))
+    .sort((a, b) => a.error - b.error)[0]
+}
+
+function getAutoTolerance(scoreDelta) {
+  if (scoreDelta >= 150) return 0.07
+  if (scoreDelta >= 80) return 0.1
+  return 0.14
+}
+
+function pushCrystalFits(candidates, baseJump, remainder, scoreDelta) {
+  const units = [
+    { countKey: 'crystal10', value: 10 - baseJump },
+    { countKey: 'crystal20', value: 20 - baseJump },
+    { countKey: 'crystal30', value: 30 - baseJump },
+  ].filter((unit) => unit.value > 0)
+
+  const max10 = Math.min(20, Math.floor(remainder / (units[0]?.value || Infinity)))
+  const max20 = Math.min(20, Math.floor(remainder / (units[1]?.value || Infinity)))
+  const max30 = Math.min(20, Math.floor(remainder / (units[2]?.value || Infinity)))
+  const tolerance = getAutoTolerance(scoreDelta)
+
+  for (let crystal10 = 0; crystal10 <= max10; crystal10 += 1) {
+    for (let crystal20 = 0; crystal20 <= max20; crystal20 += 1) {
+      for (let crystal30 = 0; crystal30 <= max30; crystal30 += 1) {
+        const crystalExtra =
+          crystal10 * (10 - baseJump) +
+          crystal20 * (20 - baseJump) +
+          crystal30 * (30 - baseJump)
+        if (crystalExtra > remainder) continue
+
+        const autoExtra = remainder - crystalExtra
+        const autoFit = getAutoFit(autoExtra, scoreDelta)
+        const validAuto = autoFit.error <= tolerance
+        const crystalCount = crystal10 + crystal20 + crystal30
+        const score =
+          autoFit.error +
+          (validAuto ? 0 : 0.35) +
+          crystalCount * 0.002 +
+          (6 - baseJump) * 0.04 +
+          (autoExtra > scoreDelta * 0.75 ? 0.18 : 0)
+
+        candidates.push({
+          autoExtra,
+          autoFit,
+          baseJump,
+          crystal10,
+          crystal20,
+          crystal30,
+          crystalExtra,
+          score,
+          validAuto,
+        })
+      }
+    }
+  }
 }
 
 function decomposeWaveDetail(waveDelta, scoreDelta) {
   const candidates = []
 
-  for (let baseJump = 6; baseJump >= 3; baseJump -= 1) {
+  for (let baseJump = 6; baseJump >= 1; baseJump -= 1) {
     const baseWave = scoreDelta * baseJump
     const remainder = waveDelta - baseWave
     if (remainder < 0) continue
 
-    const crystalUnit = 30 - baseJump
-    const maxCrystalCount = crystalUnit > 0 ? Math.floor(remainder / crystalUnit) : 0
-
-    for (let crystalCount = 0; crystalCount <= maxCrystalCount; crystalCount += 1) {
-      const crystalExtra = crystalCount * crystalUnit
-      const autoExtra = remainder - crystalExtra
-      const autoScore = getClosestAutoRatioScore(autoExtra, scoreDelta)
-      const score =
-        autoScore +
-        crystalCount * 0.02 +
-        (6 - baseJump) * 0.05 +
-        (autoExtra > scoreDelta * 0.75 ? 0.25 : 0)
-
-      candidates.push({
-        autoExtra,
-        baseJump,
-        crystalExtra,
-        score,
-      })
-    }
+    pushCrystalFits(candidates, baseJump, remainder, scoreDelta)
   }
 
   return candidates.sort(
     (a, b) =>
       a.score - b.score ||
       b.baseJump - a.baseJump ||
+      a.crystal10 + a.crystal20 + a.crystal30 - (b.crystal10 + b.crystal20 + b.crystal30) ||
       a.crystalExtra - b.crystalExtra,
   )[0]
 }
