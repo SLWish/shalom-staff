@@ -418,15 +418,33 @@ function formatNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : '-'
 }
 
-function formatWphSlotTime(value) {
+function formatWphSlotDate(value) {
   if (!value) return '-'
-  return new Date(getDateTimeValue(value)).toLocaleString('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
+  return new Date(getDateTimeValue(value)).toLocaleDateString('ko-KR', {
     month: '2-digit',
     day: '2-digit',
     timeZone: 'Asia/Seoul',
   })
+}
+
+function formatWphSlotClock(value) {
+  if (!value) return '-'
+  return new Date(getDateTimeValue(value)).toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Seoul',
+  })
+}
+
+function formatWphSlotRange(startValue, endValue) {
+  if (!startValue || !endValue) return '-'
+  const startDate = formatWphSlotDate(startValue)
+  const endDate = formatWphSlotDate(endValue)
+  const startClock = formatWphSlotClock(startValue)
+  const endClock = formatWphSlotClock(endValue)
+  return startDate === endDate
+    ? `${startDate} ${startClock} ~ ${endClock}`
+    : `${startDate} ${startClock} ~ ${endDate} ${endClock}`
 }
 
 function formatWphMinute(value) {
@@ -1264,7 +1282,7 @@ function WphReportPage() {
             <div className="wph-report-head">
               <strong>🌊 {selectedGuildName} Guild Waves ({getRankLabel(selectedGuildName)}) 🌊</strong>
               <span>
-                {formatWphSlotTime(selectedReport.windowStartAt)} to {formatWphSlotTime(selectedReport.windowEndAt)}
+                {formatWphSlotRange(selectedReport.windowStartAt, selectedReport.windowEndAt)}
               </span>
             </div>
             <ol className="wph-report-list">
@@ -1278,12 +1296,17 @@ function WphReportPage() {
                       {member.skips} skips, {formatWphMinute(member.downMinutes)} down
                     </span>
                   </div>
-                  <p>
-                    {member.hourly.map((value) => (typeof value === 'number' ? formatNumber(value) : '-')).join(' | ')} WPH{' '}
-                    {formatNumber(member.averageWph)}
-                  </p>
-                  <p>
-                    Waves: {formatNumber(member.startWave)} -&gt; {formatNumber(member.endWave)}
+                  <div className="wph-values-row">
+                    {member.hourly.map((value, hourIndex) => (
+                      <span key={`${member.nickname}-wph-${hourIndex}`}>
+                        {typeof value === 'number' ? formatNumber(value) : '-'}
+                      </span>
+                    ))}
+                    <strong>WPH {formatNumber(member.averageWph)}</strong>
+                  </div>
+                  <p className="wph-score-projection">
+                    점수: {formatNumber(member.currentScore)} -&gt;{' '}
+                    {typeof member.projectedFinalScore === 'number' ? `${formatNumber(member.projectedFinalScore)} 예상` : '예측 대기'}
                   </p>
                 </li>
               ))}

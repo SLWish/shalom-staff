@@ -1281,7 +1281,7 @@
 
 .wph-report-list li {
   display: grid;
-  gap: 4px;
+  gap: 7px;
 }
 
 .wph-member-line {
@@ -1308,8 +1308,37 @@
 
 .wph-report-list p {
   padding-left: 16px;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  overflow-wrap: anywhere;
+}
+
+.wph-values-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.wph-values-row span {
+  padding: 2px 6px;
+  color: #c8ceda;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+}
+
+.wph-values-row strong {
+  padding: 2px 7px;
+  color: #0b0e16;
+  background: var(--yellow);
+  border-radius: 999px;
+}
+
+.wph-score-projection {
+  color: #aeb6c6 !important;
 }
 
 .member-list,

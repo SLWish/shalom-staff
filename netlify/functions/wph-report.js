@@ -111,7 +111,7 @@ function getDownMinutes(row) {
   return Math.floor((capturedTime - apiTime) / 60000)
 }
 
-function buildGuildReport(guildName, snapshots) {
+function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
   const latestSnapshot = snapshots.at(-1)
   const firstSnapshot = snapshots[0]
   const bySlot = snapshots.map((snapshot) => ({
@@ -128,6 +128,12 @@ function buildGuildReport(guildName, snapshots) {
       windowStartAt: firstSnapshot?.slotAt || null,
     }
   }
+
+  const seasonEndTime = toTime(guildMeta?.seasonEndAt)
+  const latestSlotTime = latestSnapshot.slotTime
+  const elapsedHours = Math.max(0, (latestSnapshot.slotTime - firstSnapshot.slotTime) / 36e5)
+  const remainingHours =
+    seasonEndTime !== null && latestSlotTime !== null ? Math.max(0, (seasonEndTime - latestSlotTime) / 36e5) : null
 
   const latestMembers = latestSnapshot.rows
   const members = latestMembers
@@ -153,17 +159,31 @@ function buildGuildReport(guildName, snapshots) {
       const startRow = bySlot.find((slot) => slot.members[latestRow.nickname])?.members[latestRow.nickname] || null
       const startWave = typeof startRow?.wave === 'number' ? startRow.wave : null
       const endWave = typeof latestRow.wave === 'number' ? latestRow.wave : null
+      const startScore = typeof startRow?.score === 'number' ? startRow.score : null
+      const currentScore = typeof latestRow.score === 'number' ? latestRow.score : null
+      const scoreDelta =
+        typeof startScore === 'number' && typeof currentScore === 'number' ? Math.max(0, currentScore - startScore) : null
+      const scorePerHour = scoreDelta !== null && elapsedHours > 0 ? scoreDelta / elapsedHours : null
+      const projectedFinalScore =
+        typeof currentScore === 'number' && typeof scorePerHour === 'number' && typeof remainingHours === 'number'
+          ? Math.round(currentScore + scorePerHour * remainingHours)
+          : null
       const downMinutes = getDownMinutes(latestRow)
       const skips = skippedIntervals + validHourly.filter((value) => averageWph && value > averageWph * 1.35).length
 
       return {
         averageWph,
+        currentScore,
         downMinutes,
         endWave,
         hourly,
         nickname: latestRow.nickname,
+        projectedFinalScore,
         score: latestRow.score,
+        scoreDelta,
+        scorePerHour,
         skips,
+        startScore,
         startWave,
       }
     })
@@ -176,6 +196,21 @@ function buildGuildReport(guildName, snapshots) {
     windowEndAt: latestSnapshot.slotAt,
     windowStartAt: firstSnapshot.slotAt,
   }
+}
+
+function getLatestGuildMeta(rows) {
+  return rows.reduce((selected, row) => {
+    if (!row.guild_name) return selected
+    const currentTime = toTime(selected[row.guild_name]?.captured_at)
+    const rowTime = toTime(row.captured_at)
+    if (rowTime !== null && (currentTime === null || rowTime > currentTime)) {
+      selected[row.guild_name] = {
+        captured_at: row.captured_at,
+        seasonEndAt: row.raw_json?.seasonEndAt || null,
+      }
+    }
+    return selected
+  }, {})
 }
 
 async function fetchGuildRanks() {
@@ -200,16 +235,20 @@ async function fetchGuildRanks() {
 export async function handler() {
   try {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString()
-    const [rows, ranks] = await Promise.all([
+    const [rows, guildRows, ranks] = await Promise.all([
       selectRows(
         `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=3000`,
+      ),
+      selectRows(
+        `guild_snapshots?select=guild_name,captured_at,raw_json&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=100`,
       ),
       fetchGuildRanks(),
     ])
     const snapshotsByGuild = chooseSnapshots(rows)
+    const guildMeta = getLatestGuildMeta(guildRows)
     const guilds = Object.fromEntries(
       REPORT_GUILDS.map((guildName) => {
-        const report = buildGuildReport(guildName, snapshotsByGuild[guildName] || [])
+        const report = buildGuildReportWithMeta(guildName, snapshotsByGuild[guildName] || [], guildMeta[guildName])
         return [guildName, { ...report, rank: ranks[guildName] || null }]
       }),
     )
