@@ -5,8 +5,10 @@ const LOOKBACK_HOURS = 18
 const REPORT_MINUTE = 55
 const PRIMARY_SOURCE_MINUTE_MIN = 53
 const PRIMARY_SOURCE_MINUTE_MAX = 54
-const FALLBACK_SOURCE_MINUTE_MIN = 55
-const FALLBACK_SOURCE_MINUTE_MAX = 56
+const SECONDARY_SOURCE_MINUTE_MIN = 55
+const SECONDARY_SOURCE_MINUTE_MAX = 56
+const FALLBACK_SOURCE_MINUTE_MIN = 49
+const FALLBACK_SOURCE_MINUTE_MAX = 50
 const INTERVAL_COUNT = 4
 const GUILD_RANKING_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds'
 const MAX_NORMAL_WPH = 3000
@@ -35,13 +37,14 @@ function getReportSlotInfo(capturedAt) {
   const capturedDate = new Date(capturedTime)
   const capturedMinute = capturedDate.getUTCMinutes()
   const isPrimary = capturedMinute >= PRIMARY_SOURCE_MINUTE_MIN && capturedMinute <= PRIMARY_SOURCE_MINUTE_MAX
+  const isSecondary = capturedMinute >= SECONDARY_SOURCE_MINUTE_MIN && capturedMinute <= SECONDARY_SOURCE_MINUTE_MAX
   const isFallback = capturedMinute >= FALLBACK_SOURCE_MINUTE_MIN && capturedMinute <= FALLBACK_SOURCE_MINUTE_MAX
-  if (!isPrimary && !isFallback) return null
+  if (!isPrimary && !isSecondary && !isFallback) return null
 
   const slot = new Date(capturedTime)
   slot.setUTCMinutes(REPORT_MINUTE, 0, 0)
   return {
-    sourcePriority: isPrimary ? 0 : 1,
+    sourcePriority: isPrimary ? 0 : isSecondary ? 1 : 2,
     slot,
   }
 }
