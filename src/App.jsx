@@ -573,6 +573,59 @@ function getTargetLabel(guildName) {
   return order >= 0 ? `${order + 1}군` : guildName
 }
 
+function getGuildOrderIndex(guildName) {
+  const index = GUILD_ORDER.indexOf(guildName)
+  return index >= 0 ? index : 999
+}
+
+function getMoveCandidateProjectedValue(member) {
+  return typeof member.projectedFinalScore === 'number' ? member.projectedFinalScore : member.currentScore || 0
+}
+
+function compareMoveCandidates(a, b) {
+  return (
+    getGuildOrderIndex(a.recommendedGuild) - getGuildOrderIndex(b.recommendedGuild) ||
+    getMoveCandidateProjectedValue(b) - getMoveCandidateProjectedValue(a) ||
+    (b.scorePerHour || 0) - (a.scorePerHour || 0) ||
+    (b.currentScore || 0) - (a.currentScore || 0) ||
+    a.nickname.localeCompare(b.nickname)
+  )
+}
+
+function sortMoveCandidates(candidates) {
+  return [...candidates].sort(compareMoveCandidates)
+}
+
+function getTargetSlotMap(guildStats) {
+  return Object.fromEntries(
+    guildStats.map(({ guild, stats }) => [
+      guild.guildName,
+      {
+        availableSlots: stats.availableSlots,
+        memberCount: stats.memberCount,
+        maxMembers: stats.maxMembers,
+      },
+    ]),
+  )
+}
+
+function getMoveCandidateGroups(candidates, targetSlotMap) {
+  const grouped = candidates.reduce((nextGroups, member) => {
+    if (!nextGroups[member.recommendedGuild]) nextGroups[member.recommendedGuild] = []
+    nextGroups[member.recommendedGuild].push(member)
+    return nextGroups
+  }, {})
+
+  return Object.entries(grouped)
+    .map(([guildName, members]) => ({
+      guildName,
+      label: getTargetLabel(guildName),
+      members,
+      slots: targetSlotMap[guildName] || { availableSlots: 0, memberCount: 0, maxMembers: MAX_GUILD_MEMBERS },
+    }))
+    .sort((a, b) => getGuildOrderIndex(a.guildName) - getGuildOrderIndex(b.guildName))
+}
+
 function getMoveTarget(guildName, currentScore, trend, cutScores) {
   const currentIndex = GUILD_ORDER.indexOf(guildName)
   if (currentIndex <= 0) return null
@@ -633,6 +686,7 @@ function getMoveCandidatesForGuild(guild, cutScores, wphReport) {
       }
     })
     .filter(Boolean)
+    .sort(compareMoveCandidates)
 }
 
 function getGuildStaffData(guild, cutScores, wphReport) {
@@ -1355,26 +1409,58 @@ function WphReportPage() {
   )
 }
 
-function MoveCandidatesPage({ selectedEntry, selectedGuildName }) {
+function MoveCandidatesPage({ guildStats, selectedEntry, selectedGuildName }) {
   const { guild, staffData } = selectedEntry
+  const candidates = sortMoveCandidates(staffData.moveCandidates)
+  const targetSlotMap = getTargetSlotMap(guildStats)
+  const targetGroups = getMoveCandidateGroups(candidates, targetSlotMap)
+
   return (
     <PageShell eyebrow="Move Candidates" title="이동 후보">
       <section className="staff-section">
         <div className="section-title">
           <span>확정이 아닌 참고 후보</span>
           <h2>
-            {selectedGuildName} · {staffData.moveCandidates.length}명
+            {selectedGuildName} · {candidates.length}명
           </h2>
         </div>
-        {staffData.moveCandidates.length === 0 ? (
+        {candidates.length === 0 ? (
           <EmptyState>이동 후보 없음</EmptyState>
         ) : (
-          <div className="staff-card-list compact-list">
-            {staffData.moveCandidates.map((member) => (
+          <>
+            <div className="move-summary-panel">
+              {targetGroups.map((group) => (
+                <article className="move-summary-card" key={group.guildName}>
+                  <div className="move-summary-head">
+                    <strong>{group.label} {group.guildName}</strong>
+                    <span>
+                      후보 {group.members.length}명 · 자리 {Math.max(0, group.slots.availableSlots)}개
+                    </span>
+                  </div>
+                  <div className="move-summary-meta">
+                    정원 {group.slots.memberCount}/{group.slots.maxMembers}
+                    {group.slots.availableSlots <= 0 ? ' · 만원' : ''}
+                  </div>
+                  <ul className="move-summary-list">
+                    {group.members.map((member) => (
+                      <li key={`${member.currentGuild}-${member.nickname}-${member.recommendedGuild}-summary`}>
+                        <span>{member.nickname}</span>
+                        <strong>
+                          {getTargetLabel(member.currentGuild)}→{getTargetLabel(member.recommendedGuild)} {formatNumber(member.projectedFinalScore)}점
+                        </strong>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+
+            <div className="staff-card-list compact-list">
+            {candidates.map((member, index) => (
               <article className="staff-row-card move-card" key={`${member.currentGuild}-${member.nickname}-${member.recommendedGuild}`}>
                 <div className="member-title-row">
                   <strong>{member.nickname}</strong>
-                  <span className="status-badge">{member.currentGuild} → {member.recommendedGuild}</span>
+                  <span className="status-badge">우선 {index + 1} · {member.currentGuild} → {member.recommendedGuild}</span>
                 </div>
                 <dl className="mini-fields">
                   <div>
@@ -1427,7 +1513,8 @@ function MoveCandidatesPage({ selectedEntry, selectedGuildName }) {
                 )}
               </article>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </section>
       <p className="selected-debug">현재 선택 길드: {guild.guildName}</p>
@@ -1792,7 +1879,13 @@ function App() {
             archives={archives}
           />
         )}
-        {activePage === 'moves' && <MoveCandidatesPage selectedEntry={selectedEntry} selectedGuildName={selectedGuildName} />}
+        {activePage === 'moves' && (
+          <MoveCandidatesPage
+            guildStats={activeGuildStats}
+            selectedEntry={selectedEntry}
+            selectedGuildName={selectedGuildName}
+          />
+        )}
         {activePage === 'wph' && <WphReportPage />}
       </main>
     </div>
