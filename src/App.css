@@ -1308,8 +1308,37 @@
   gap: 8px;
 }
 
-.archive-picker-current {
+.archive-picker-strip {
   width: 100%;
+  min-height: 38px;
+  padding: 9px 12px;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(3, 7, 18, 0.12);
+}
+
+.archive-picker-strip.active {
+  color: #0b0e16;
+  background: var(--yellow);
+  border-color: #d2a70d;
+}
+
+.archive-selected-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 13px;
+  background: #0b0f17;
+  border: 1px solid rgba(243, 203, 64, 0.36);
+  border-radius: 8px;
 }
 
 .archive-picker-options {

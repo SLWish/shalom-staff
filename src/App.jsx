@@ -1307,9 +1307,13 @@ function AttentionPage({ archiveStatus, archives }) {
           <div className="archive-season-picker">
             <button
               type="button"
-              className={`archive-picker-current archive-card ${isSeasonPickerOpen ? 'active' : ''}`}
+              className={`archive-picker-strip ${isSeasonPickerOpen ? 'active' : ''}`}
               onClick={() => setIsSeasonPickerOpen((open) => !open)}
             >
+              시즌 선택 · {formatSeasonButtonLabel(selectedArchive)}
+            </button>
+
+            <div className="archive-selected-card">
               <span className="archive-season-main">
                 <small>시즌 선택</small>
                 <strong>{formatSeasonButtonLabel(selectedArchive)}</strong>
@@ -1320,7 +1324,7 @@ function AttentionPage({ archiveStatus, archives }) {
               <span className="archive-fail-count">
                 미달 {getArchiveFailureGroups(selectedArchive).reduce((sum, group) => sum + group.failedMembers.length, 0)}명
               </span>
-            </button>
+            </div>
 
             {isSeasonPickerOpen && (
               <div className="archive-picker-options">
