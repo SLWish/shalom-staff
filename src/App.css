@@ -1303,6 +1303,30 @@
   gap: 8px;
 }
 
+.archive-season-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.archive-picker-current {
+  width: 100%;
+}
+
+.archive-picker-options {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  padding: 8px;
+  overflow-y: auto;
+  background: rgba(5, 8, 14, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.archive-picker-options .archive-card {
+  padding: 9px 10px;
+}
+
 .archive-season-main {
   display: grid;
   gap: 4px;
