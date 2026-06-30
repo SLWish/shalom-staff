@@ -553,6 +553,21 @@ function getScoreTrend(member) {
   )
 }
 
+function getWphProjectionTrend(guildName, member, wphReport) {
+  const reportMember = wphReport?.guilds?.[guildName]?.members?.find((entry) => entry.nickname === member.nickname)
+  if (!reportMember) return null
+
+  return {
+    basis: 'WPH 55분 기록 기준',
+    previousScore: reportMember.startScore,
+    projectedFinalScore: typeof reportMember.projectedFinalScore === 'number' ? reportMember.projectedFinalScore : null,
+    remainingHours: null,
+    scoreDelta: reportMember.scoreDelta,
+    scorePerHour: reportMember.scorePerHour,
+    timeDeltaHours: null,
+  }
+}
+
 function getTargetLabel(guildName) {
   const order = GUILD_ORDER.indexOf(guildName)
   return order >= 0 ? `${order + 1}군` : guildName
@@ -590,12 +605,12 @@ function getMoveTarget(guildName, currentScore, trend, cutScores) {
   return null
 }
 
-function getMoveCandidatesForGuild(guild, cutScores) {
+function getMoveCandidatesForGuild(guild, cutScores, wphReport) {
   const remainingHours = getRemainingHours(guild.seasonEndAt)
 
   return sortByScore(guild.members)
     .map((member) => {
-      const trend = getScoreTrend(member)
+      const trend = getWphProjectionTrend(guild.guildName, member, wphReport) || getScoreTrend(member)
       const currentScore = Number(member.score)
       if (!Number.isFinite(currentScore)) return null
       const target = getMoveTarget(guild.guildName, currentScore, trend, cutScores)
@@ -620,7 +635,7 @@ function getMoveCandidatesForGuild(guild, cutScores) {
     .filter(Boolean)
 }
 
-function getGuildStaffData(guild, cutScores) {
+function getGuildStaffData(guild, cutScores, wphReport) {
   const seasonStart = parseSeasonStart(guild.seasonPeriod)
   const shortageMembers = sortShortageMembers(
     guild.members
@@ -648,7 +663,7 @@ function getGuildStaffData(guild, cutScores) {
 
   return {
     inactiveMembers: sortInactiveMembers(activityMembers.filter((member) => member.diffHours !== null && member.diffHours >= INACTIVE_HOURS_THRESHOLD)),
-    moveCandidates: getMoveCandidatesForGuild(guild, cutScores),
+    moveCandidates: getMoveCandidatesForGuild(guild, cutScores, wphReport),
     newMembers: sortByScore(activityMembers.filter((member) => member.isProratedCut)),
     nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
     seasonNotJoinedMembers: sortInactiveMembers(activityMembers.filter((member) => member.seasonNotJoined)),
@@ -1435,11 +1450,27 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [lastRefreshedAtByGuild, setLastRefreshedAtByGuild] = useState({})
   const [selectedGuildName, setSelectedGuildName] = useState(activeGuildConfigs[0].guildName)
+  const [serverWphReport, setServerWphReport] = useState(null)
   const [wphRecordsByGuild, setWphRecordsByGuild] = useState(() =>
     Object.fromEntries(guildConfigs.map((config) => [config.guildName, getLatestWphRecords(config.guildName)])),
   )
   const archiveSavingRef = useRef(false)
   const loadingGuildsRef = useRef(new Set())
+
+  useEffect(() => {
+    let isMounted = true
+    fetchWphReport()
+      .then((payload) => {
+        if (isMounted) setServerWphReport(payload)
+      })
+      .catch(() => {
+        if (isMounted) setServerWphReport(null)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const guilds = useMemo(
     () =>
@@ -1491,8 +1522,8 @@ function App() {
   )
 
   const staffByGuild = useMemo(
-    () => Object.fromEntries(guilds.map((guild) => [guild.guildName, getGuildStaffData(guild, cutScores)])),
-    [cutScores, guilds],
+    () => Object.fromEntries(guilds.map((guild) => [guild.guildName, getGuildStaffData(guild, cutScores, serverWphReport)])),
+    [cutScores, guilds, serverWphReport],
   )
 
   const guildStats = useMemo(
