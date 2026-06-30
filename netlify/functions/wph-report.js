@@ -111,6 +111,14 @@ function getDownMinutes(row) {
   return Math.floor((capturedTime - apiTime) / 60000)
 }
 
+function getSkipCount(hourlyValues, averageWph) {
+  if (typeof averageWph !== 'number' || averageWph <= 0) return 0
+  return hourlyValues.reduce((sum, value) => {
+    if (typeof value !== 'number' || value < averageWph + 30) return sum
+    return sum + Math.floor((value - averageWph) / 30)
+  }, 0)
+}
+
 function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
   const latestSnapshot = snapshots.at(-1)
   const firstSnapshot = snapshots[0]
@@ -139,7 +147,6 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
   const members = latestMembers
     .map((latestRow) => {
       const hourly = []
-      let skippedIntervals = 0
       for (let index = 1; index < bySlot.length; index += 1) {
         const previous = bySlot[index - 1].members[latestRow.nickname]
         const current = bySlot[index].members[latestRow.nickname]
@@ -147,7 +154,6 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
         const currentWave = Number(current?.wave)
         const waveDelta = Number.isFinite(previousWave) && Number.isFinite(currentWave) ? Math.max(0, currentWave - previousWave) : null
         if (waveDelta !== null && waveDelta > MAX_NORMAL_WPH) {
-          skippedIntervals += 1
           hourly.push(null)
         } else {
           hourly.push(waveDelta)
@@ -169,7 +175,7 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
           ? Math.round(currentScore + scorePerHour * remainingHours)
           : null
       const downMinutes = getDownMinutes(latestRow)
-      const skips = skippedIntervals + validHourly.filter((value) => averageWph && value > averageWph * 1.35).length
+      const skips = getSkipCount(validHourly, averageWph)
 
       return {
         averageWph,
@@ -192,6 +198,8 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
   return {
     guildName,
     members,
+    seasonEndAt: guildMeta?.seasonEndAt || null,
+    seasonStartAt: guildMeta?.seasonStartAt || null,
     slotCount: snapshots.length,
     windowEndAt: latestSnapshot.slotAt,
     windowStartAt: firstSnapshot.slotAt,
@@ -207,6 +215,7 @@ function getLatestGuildMeta(rows) {
       selected[row.guild_name] = {
         captured_at: row.captured_at,
         seasonEndAt: row.raw_json?.seasonEndAt || null,
+        seasonStartAt: row.raw_json?.seasonStartAt || null,
       }
     }
     return selected

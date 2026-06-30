@@ -447,6 +447,30 @@ function formatWphSlotRange(startValue, endValue) {
     : `${startDate} ${startClock} ~ ${endDate} ${endClock}`
 }
 
+function formatWphSeasonDate(value) {
+  if (!value) return null
+  return new Date(getDateTimeValue(value)).toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Seoul',
+  })
+}
+
+function formatWphSeasonRange(startValue, endValue) {
+  const start = formatWphSeasonDate(startValue)
+  const end = formatWphSeasonDate(endValue)
+  if (!start || !end) return '55분 기준'
+  return `${start} - ${end}`
+}
+
+function formatWphScoreProjection(member) {
+  if (typeof member.currentScore !== 'number') return '점수: 확인 불가'
+  if (typeof member.projectedFinalScore !== 'number') return `점수: ${formatNumber(member.currentScore)} -> 예측 대기`
+  if (member.projectedFinalScore === member.currentScore) return `점수: ${formatNumber(member.currentScore)} 유지 예상`
+  return `점수: ${formatNumber(member.currentScore)} -> ${formatNumber(member.projectedFinalScore)} 예상`
+}
+
 function formatWphMinute(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
   if (value < 60) return `${value}m`
@@ -1243,6 +1267,7 @@ function WphReportPage() {
   }, [])
 
   const selectedReport = report?.guilds?.[selectedGuildName] || null
+  const wphSeasonLabel = selectedReport ? formatWphSeasonRange(selectedReport.seasonStartAt, selectedReport.seasonEndAt) : '55분 기준'
   const reportGuilds = activeGuildConfigs.slice(0, 3)
   const getRankLabel = (guildName) => {
     const rank = report?.guilds?.[guildName]?.rank
@@ -1253,7 +1278,7 @@ function WphReportPage() {
     <PageShell eyebrow="Guild Waves" title="WPH">
       <section className="staff-section">
         <div className="section-title">
-          <span>55분 기준</span>
+          <span>{wphSeasonLabel}</span>
           <h2>길드 WPH</h2>
         </div>
         <div className="guild-tabs wph-guild-tabs">
@@ -1304,10 +1329,7 @@ function WphReportPage() {
                     ))}
                     <strong>WPH {formatNumber(member.averageWph)}</strong>
                   </div>
-                  <p className="wph-score-projection">
-                    점수: {formatNumber(member.currentScore)} -&gt;{' '}
-                    {typeof member.projectedFinalScore === 'number' ? `${formatNumber(member.projectedFinalScore)} 예상` : '예측 대기'}
-                  </p>
+                  <p className="wph-score-projection">{formatWphScoreProjection(member)}</p>
                 </li>
               ))}
             </ol>
