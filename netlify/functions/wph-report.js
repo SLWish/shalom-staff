@@ -166,10 +166,14 @@ function pushCrystalFits(candidates, baseJump, remainder, scoreDelta) {
         const autoFit = getAutoFit(autoExtra, scoreDelta)
         const validAuto = autoFit.error <= tolerance
         const crystalCount = crystal10 + crystal20 + crystal30
+        const nonThirtyCrystalCount = crystal10 + crystal20
+        const thirtyOnlyBonus = crystalCount > 0 && nonThirtyCrystalCount === 0 ? -0.025 : 0
         const score =
           autoFit.error +
           (validAuto ? 0 : 0.35) +
           crystalCount * 0.002 +
+          nonThirtyCrystalCount * 0.08 +
+          thirtyOnlyBonus +
           (6 - baseJump) * 0.04 +
           (autoExtra > scoreDelta * 0.75 ? 0.18 : 0)
 
