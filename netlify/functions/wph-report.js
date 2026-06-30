@@ -119,8 +119,15 @@ function getSkipCount(hourlyValues, averageWph) {
   }, 0)
 }
 
-function formatWaveDetail(value) {
-  return typeof value === 'number' ? String(value) : '0'
+function formatWaveDetail(waveDelta, scoreDelta) {
+  if (typeof waveDelta !== 'number') return '0'
+  if (typeof scoreDelta !== 'number' || scoreDelta <= 0) return String(waveDelta)
+
+  const baseJump = Math.floor(waveDelta / scoreDelta)
+  const specialJump = waveDelta - scoreDelta * baseJump
+  if (baseJump <= 0) return String(waveDelta)
+
+  return specialJump > 0 ? `${scoreDelta}x${baseJump}+${specialJump}` : `${scoreDelta}x${baseJump}`
 }
 
 function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
@@ -156,15 +163,20 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
         const current = bySlot[index].members[latestRow.nickname]
         const previousWave = Number(previous?.wave)
         const currentWave = Number(current?.wave)
+        const previousScore = Number(previous?.score)
+        const currentScoreForSlot = Number(current?.score)
         const waveDelta = Number.isFinite(previousWave) && Number.isFinite(currentWave) ? Math.max(0, currentWave - previousWave) : null
+        const scoreDeltaForSlot =
+          Number.isFinite(previousScore) && Number.isFinite(currentScoreForSlot) ? Math.max(0, currentScoreForSlot - previousScore) : null
         if (waveDelta !== null && waveDelta > MAX_NORMAL_WPH) {
-          hourly.push(null)
+          hourly.push({ scoreDelta: scoreDeltaForSlot, waveDelta: null })
         } else {
-          hourly.push(waveDelta)
+          hourly.push({ scoreDelta: scoreDeltaForSlot, waveDelta })
         }
       }
 
-      const validHourly = hourly.filter((value) => typeof value === 'number')
+      const hourlyValues = hourly.map((item) => item.waveDelta)
+      const validHourly = hourlyValues.filter((value) => typeof value === 'number')
       const averageWph = validHourly.length > 0 ? Math.round(validHourly.reduce((sum, value) => sum + value, 0) / validHourly.length) : null
       const startRow = bySlot.find((slot) => slot.members[latestRow.nickname])?.members[latestRow.nickname] || null
       const startWave = typeof startRow?.wave === 'number' ? startRow.wave : null
@@ -184,10 +196,10 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
       return {
         averageWph,
         currentScore,
-        detailHourly: hourly.map(formatWaveDetail),
+        detailHourly: hourly.map((item) => formatWaveDetail(item.waveDelta, item.scoreDelta)),
         downMinutes,
         endWave,
-        hourly,
+        hourly: hourlyValues,
         nickname: latestRow.nickname,
         projectedFinalScore,
         score: latestRow.score,
