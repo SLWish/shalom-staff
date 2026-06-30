@@ -1226,6 +1226,10 @@ function WphReportPage() {
 
   const selectedReport = report?.guilds?.[selectedGuildName] || null
   const reportGuilds = activeGuildConfigs.slice(0, 3)
+  const getRankLabel = (guildName) => {
+    const rank = report?.guilds?.[guildName]?.rank
+    return typeof rank === 'number' ? `#${rank}` : '#-'
+  }
 
   return (
     <PageShell eyebrow="Guild Waves" title="WPH">
@@ -1242,7 +1246,7 @@ function WphReportPage() {
               key={guild.guildName}
               onClick={() => setSelectedGuildName(guild.guildName)}
             >
-              {index + 1}군 {guild.guildName}
+              {index + 1}군 {guild.guildName} {getRankLabel(guild.guildName)}
             </button>
           ))}
         </div>
@@ -1258,7 +1262,7 @@ function WphReportPage() {
         ) : (
           <div className="wph-report-card">
             <div className="wph-report-head">
-              <strong>🌊 {selectedGuildName} Guild Waves 🌊</strong>
+              <strong>🌊 {selectedGuildName} Guild Waves ({getRankLabel(selectedGuildName)}) 🌊</strong>
               <span>
                 {formatWphSlotTime(selectedReport.windowStartAt)} to {formatWphSlotTime(selectedReport.windowEndAt)}
               </span>

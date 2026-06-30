@@ -6,6 +6,7 @@ const REPORT_MINUTE = 55
 const SOURCE_MINUTE_MIN = 53
 const SOURCE_MINUTE_MAX = 54
 const INTERVAL_COUNT = 4
+const GUILD_RANKING_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds'
 
 function json(statusCode, body) {
   return {
@@ -151,14 +152,41 @@ function buildGuildReport(guildName, snapshots) {
   }
 }
 
+async function fetchGuildRanks() {
+  try {
+    const response = await fetch(GUILD_RANKING_URL, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) return {}
+    const payload = await response.json()
+    const list = payload?.result?.list || payload?.list || []
+    return Object.fromEntries(
+      list
+        .filter((guild) => REPORT_GUILDS.includes(guild.name))
+        .map((guild) => [guild.name, Number(guild.rank) || null]),
+    )
+  } catch {
+    return {}
+  }
+}
+
 export async function handler() {
   try {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString()
-    const rows = await selectRows(
-      `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=3000`,
-    )
+    const [rows, ranks] = await Promise.all([
+      selectRows(
+        `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=3000`,
+      ),
+      fetchGuildRanks(),
+    ])
     const snapshotsByGuild = chooseSnapshots(rows)
-    const guilds = Object.fromEntries(REPORT_GUILDS.map((guildName) => [guildName, buildGuildReport(guildName, snapshotsByGuild[guildName] || [])]))
+    const guilds = Object.fromEntries(
+      REPORT_GUILDS.map((guildName) => {
+        const report = buildGuildReport(guildName, snapshotsByGuild[guildName] || [])
+        return [guildName, { ...report, rank: ranks[guildName] || null }]
+      }),
+    )
 
     return json(200, {
       generatedAt: new Date().toISOString(),
