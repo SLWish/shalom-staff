@@ -15,12 +15,13 @@ import {
   readScoreHistory,
 } from './services/scoreHistory.js'
 import { createSeasonArchive, readSeasonArchives, shouldAutoArchive, upsertSeasonArchive } from './services/seasonArchive.js'
-import { fetchSharedSeasonArchives } from './services/serverHistoryApi.js'
+import { fetchSharedHistory } from './services/serverHistoryApi.js'
 import { fetchSeasonSummary } from './services/seasonSummaryApi.js'
 import { getLatestWphRecords } from './services/wphHistory.js'
 import { fetchWphReport } from './services/wphReportApi.js'
 
 const INACTIVE_HOURS_THRESHOLD = 6
+const SHORTAGE_VISIBLE_BEFORE_END_HOURS = 24
 const GUILD_ORDER = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const MAX_GUILD_MEMBERS = 20
 const SHOW_PROJECTION_DEBUG = false
@@ -416,6 +417,51 @@ function getRemainingHours(seasonEndAt) {
   return Math.max(0, (seasonEndTime - Date.now()) / 36e5)
 }
 
+function getDepartedMembersFromHistory(history, guildName) {
+  return Object.values(history || {})
+    .filter((record) => record?.departedAt)
+    .map((record) => ({
+      departedAt: record.departedAt,
+      guildName,
+      lastCheckedAt: record.lastCheckedAt || null,
+      lastSeenAt: record.lastSeenAt || null,
+      nickname: record.nickname,
+      score: typeof record.currentScore === 'number' ? record.currentScore : null,
+    }))
+    .sort((a, b) => getValidRecordTime(b.departedAt) - getValidRecordTime(a.departedAt))
+}
+
+function mergeDepartedMembers(...memberGroups) {
+  const byMember = new Map()
+
+  memberGroups.flat().forEach((member) => {
+    if (!member?.nickname || !member?.guildName || !member?.departedAt) return
+    const key = `${member.guildName}:${member.nickname}`
+    const current = byMember.get(key)
+    if (!current || getValidRecordTime(member.departedAt) > getValidRecordTime(current.departedAt)) {
+      byMember.set(key, member)
+    }
+  })
+
+  return [...byMember.values()].sort((a, b) => getValidRecordTime(b.departedAt) - getValidRecordTime(a.departedAt))
+}
+
+function createPreviousSeasonScoreMap(records) {
+  const scoreMap = new Map()
+
+  records.forEach((record) => {
+    if (!record?.guildName || !record?.nickname || typeof record.score !== 'number') return
+    scoreMap.set(`${record.guildName}:${record.nickname}`, record)
+  })
+
+  return scoreMap
+}
+
+function shouldShowShortageMembers(seasonEndAt) {
+  const remainingHours = getRemainingHours(seasonEndAt)
+  return remainingHours !== null && remainingHours <= SHORTAGE_VISIBLE_BEFORE_END_HOURS
+}
+
 function formatNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : '-'
 }
@@ -719,7 +765,8 @@ function getMoveCandidatesForGuild(guild, cutScores, wphReport) {
 
 function getGuildStaffData(guild, cutScores, wphReport) {
   const seasonStart = parseSeasonStart(guild.seasonPeriod)
-  const shortageMembers = sortShortageMembers(
+  const showShortageMembers = shouldShowShortageMembers(guild.seasonEndAt)
+  const allShortageMembers = sortShortageMembers(
     guild.members
       .filter((member) => member.score < (member.effectiveCutScore ?? guild.cutScore))
       .map((member) => ({
@@ -749,7 +796,9 @@ function getGuildStaffData(guild, cutScores, wphReport) {
     newMembers: sortByScore(activityMembers.filter((member) => member.isProratedCut)),
     nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
     seasonNotJoinedMembers: sortInactiveMembers(activityMembers.filter((member) => member.seasonNotJoined)),
-    shortageMembers,
+    shortageHiddenCount: showShortageMembers ? 0 : allShortageMembers.length,
+    shortageMembers: showShortageMembers ? allShortageMembers : [],
+    showShortageMembers,
     unverifiedMembers: sortByScore(activityMembers.filter((member) => member.diffHours === null)),
   }
 }
@@ -817,7 +866,11 @@ function getWarningAccumulations(archives) {
   const warningMap = new Map()
 
   archives.forEach((archive) => {
+    const archiveTime = getValidRecordTime(archive.savedAt) ?? getValidRecordTime(archive.seasonEndAt) ?? 0
+
     getArchiveFailureGroups(archive).forEach((group, index) => {
+      const tierLabel = `${index + 1}군`
+
       group.failedMembers.forEach((member) => {
         const key = member.nickname
         const current = warningMap.get(key) || {
@@ -825,6 +878,8 @@ function getWarningAccumulations(archives) {
           lastGuildName: group.guildName,
           lastScore: member.score,
           lastShortage: member.shortage,
+          latestTierLabel: tierLabel,
+          latestWarningAt: archiveTime,
           nickname: member.nickname,
           seasons: [],
           tierLabels: new Set(),
@@ -832,14 +887,18 @@ function getWarningAccumulations(archives) {
         }
 
         current.warningCount += 1
-        current.lastGuildName = group.guildName
-        current.lastScore = member.score
-        current.lastShortage = member.shortage
+        if (archiveTime >= current.latestWarningAt) {
+          current.lastGuildName = group.guildName
+          current.lastScore = member.score
+          current.lastShortage = member.shortage
+          current.latestTierLabel = tierLabel
+          current.latestWarningAt = archiveTime
+        }
         current.guilds.add(group.guildName)
-        current.tierLabels.add(`${index + 1}군`)
+        current.tierLabels.add(tierLabel)
         current.seasons.push({
           label: formatSeasonButtonLabel(archive),
-          tierLabel: `${index + 1}군`,
+          tierLabel,
         })
         warningMap.set(key, current)
       })
@@ -1032,6 +1091,10 @@ function MembersPage({ guilds }) {
   const activeGuilds = guilds.filter((guild) => guild.type === 'active')
   const restGuilds = guilds.filter((guild) => guild.type === 'rest')
   const allMembers = guilds.flatMap((guild) => guild.members.map((member) => ({ ...member, guildName: guild.guildName })))
+  const departedMembers = guilds.flatMap((guild) => guild.departedMembers || [])
+  const visibleDepartedMembers = normalizedSearch
+    ? departedMembers.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch))
+    : departedMembers
   const nicknameWarnings = allMembers.filter((member) => !hasValidGuildNickname(member.nickname))
   const altAccountGroups = getAltAccountGroups(allMembers)
   const filterMembers = (members) =>
@@ -1129,7 +1192,12 @@ function MembersPage({ guilds }) {
                   {guild.type === 'active' && <StoppedFiveMinuteDot member={member} />}
                   <GuildLeaderBadge member={member} />
                 </span>
-                <span>{formatNumber(member.score)}{'\uC810'}</span>
+                <span className="member-score-block">
+                  <strong>{formatNumber(member.score)}{'\uC810'}</strong>
+                  {typeof member.previousSeasonScore === 'number' && (
+                    <small>{'\uC9C0\uB09C \uC2DC\uC98C '} {formatNumber(member.previousSeasonScore)}{'\uC810'}</small>
+                  )}
+                </span>
               </li>
             )
           })}
@@ -1182,6 +1250,35 @@ function MembersPage({ guilds }) {
         </div>
       </section>
       {restGuilds.map((guild, index) => renderGuildCard(guild, index, '휴식'))}
+
+      <section className="staff-section">
+        <div className="section-title">
+          <span>{'\uC774\uC804 \uAC31\uC2E0\uC5D0\uB294 \uC788\uC5C8\uACE0, \uD604\uC7AC API \uBA85\uB2E8\uC5D0\uC11C \uC0AC\uB77C\uC9C4 \uBA64\uBC84'}</span>
+          <h2>{'\uB3C4\uC911 \uD0C8\uD1F4\uC790'}</h2>
+        </div>
+        {visibleDepartedMembers.length === 0 ? (
+          <EmptyState>
+            {normalizedSearch
+              ? '\uAC80\uC0C9\uC5B4\uC640 \uC77C\uCE58\uD558\uB294 \uD0C8\uD1F4\uC790 \uC5C6\uC74C'
+              : '\uAE30\uB85D\uB41C \uD0C8\uD1F4\uC790 \uC5C6\uC74C'}
+          </EmptyState>
+        ) : (
+          <ul className="member-name-list">
+            {visibleDepartedMembers.map((member) => (
+              <li className="needs-check" key={`${member.guildName}-${member.nickname}-departed-${member.departedAt}`}>
+                <span className="member-name-main">
+                  <strong>{member.nickname}</strong>
+                  <span className="status-badge">{'\uD0C8\uD1F4 \uAC10\uC9C0'}</span>
+                </span>
+                <span>
+                  {member.guildName} / {formatNumber(member.score)}
+                  {'\uC810'} / {'\uAC10\uC9C0 '} {formatDateTime(member.departedAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {nicknameWarnings.length > 0 && (
         <section className="staff-section">
@@ -1369,6 +1466,39 @@ function WarningAccumulationList({ archives }) {
   )
 }
 
+function ThreeWarningCopyBox({ archives }) {
+  const [copyStatus, setCopyStatus] = useState('')
+  const threeWarningMembers = getWarningAccumulations(archives).filter((member) => member.warningCount >= 3)
+  const copyText =
+    threeWarningMembers.length > 0
+      ? threeWarningMembers.map((member) => `${member.nickname} ${member.latestTierLabel} ${member.lastGuildName}`).join('\n')
+      : '3회 경고자 없음'
+
+  const copyTextToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(copyText)
+      setCopyStatus('복사 완료')
+    } catch {
+      setCopyStatus('복사 실패')
+    }
+  }
+
+  return (
+    <div className="copy-box three-warning-copy-box">
+      <div className="copy-box-head">
+        <strong>{'\u0033\uD68C \uACBD\uACE0\uC790 \uBCF5\uBD99\uC6A9'}</strong>
+        <div className="copy-actions">
+          {copyStatus && <span>{copyStatus}</span>}
+          <button type="button" onClick={copyTextToClipboard}>
+            복사
+          </button>
+        </div>
+      </div>
+      <pre>{copyText}</pre>
+    </div>
+  )
+}
+
 function AttentionPage({ archiveStatus, archives }) {
   const [selectedArchiveKey, setSelectedArchiveKey] = useState(null)
   const [isSeasonPickerOpen, setIsSeasonPickerOpen] = useState(false)
@@ -1451,6 +1581,7 @@ function AttentionPage({ archiveStatus, archives }) {
             )}
           </div>
         )}
+        {archives.length > 0 && !selectedArchive && <ThreeWarningCopyBox archives={archives} />}
       </section>
 
       {selectedArchive ? <ArchiveDetail archive={selectedArchive} /> : <WarningAccumulationList archives={archives} />}
@@ -1852,11 +1983,14 @@ function App() {
   const [moveScope, setMoveScope] = useState(MOVE_SCOPE_ALL)
   const [selectedGuildName, setSelectedGuildName] = useState(activeGuildConfigs[0].guildName)
   const [serverWphReport, setServerWphReport] = useState(null)
+  const [serverDepartedMembers, setServerDepartedMembers] = useState([])
+  const [serverPreviousSeasonScores, setServerPreviousSeasonScores] = useState([])
   const [wphRecordsByGuild, setWphRecordsByGuild] = useState(() =>
     Object.fromEntries(guildConfigs.map((config) => [config.guildName, getLatestWphRecords(config.guildName)])),
   )
   const archiveSavingRef = useRef(false)
   const loadingGuildsRef = useRef(new Set())
+  const previousSeasonScoreMap = useMemo(() => createPreviousSeasonScoreMap(serverPreviousSeasonScores), [serverPreviousSeasonScores])
 
   useEffect(() => {
     let isMounted = true
@@ -1880,6 +2014,7 @@ function App() {
         const hasApiData = Boolean(guildData[config.guildName])
         const data = guildData[config.guildName] || getFallbackGuild(config, cutScore)
         const history = historyByGuild[config.guildName] || {}
+        const serverDepartures = serverDepartedMembers.filter((member) => member.guildName === config.guildName)
         const wphRecords = wphRecordsByGuild[config.guildName] || {}
         const seasonStart = parseSeasonStart(data.seasonPeriod)
 
@@ -1891,6 +2026,7 @@ function App() {
           type: config.type,
           hasApiData,
           lastRefreshedAt: lastRefreshedAtByGuild[config.guildName] || null,
+          departedMembers: mergeDepartedMembers(getDepartedMembersFromHistory(history, config.guildName), serverDepartures),
           members: hasApiData
             ? mergeMembersWithHistory(data.members || [], history, cutScore).map((member) => {
                 const wph = wphRecords[member.nickname] || {
@@ -1911,6 +2047,7 @@ function App() {
                   ...cutMeta,
                   lastRecordDate: wph.apiDate,
                   nicknameFormatOk: hasValidGuildNickname(member.nickname),
+                  previousSeasonScore: previousSeasonScoreMap.get(`${config.guildName}:${member.nickname}`)?.score ?? null,
                   wph,
                   staffStatus: getStaffStatus({ ...member, ...cutMeta, wph }, cutScore, seasonStart),
                 }
@@ -1919,7 +2056,7 @@ function App() {
           order: config.order,
         }
       }),
-    [apiStates, cutScores, guildData, historyByGuild, lastRefreshedAtByGuild, wphRecordsByGuild],
+    [apiStates, cutScores, guildData, historyByGuild, lastRefreshedAtByGuild, previousSeasonScoreMap, serverDepartedMembers, wphRecordsByGuild],
   )
 
   const staffByGuild = useMemo(
@@ -2104,8 +2241,11 @@ function App() {
 
   useEffect(() => {
     let isMounted = true
-    fetchSharedSeasonArchives().then((sharedArchives) => {
-      if (isMounted && sharedArchives.length > 0) setArchives(sharedArchives)
+    fetchSharedHistory().then((sharedHistory) => {
+      if (!isMounted) return
+      if (sharedHistory.archives.length > 0) setArchives(sharedHistory.archives)
+      setServerDepartedMembers(sharedHistory.departures)
+      setServerPreviousSeasonScores(sharedHistory.previousSeasonScores)
     })
     return () => {
       isMounted = false

@@ -163,6 +163,7 @@ export function compareAndSaveScoreHistory(guildName, members, options = {}) {
   const playerRecords = options.playerRecords || {}
   const hasExistingHistory = Object.keys(previousHistory).length > 0
   const nextHistory = {}
+  const currentNicknames = new Set(members.map((member) => member.nickname))
 
   members.forEach((member) => {
     const previous = previousHistory[member.nickname]
@@ -191,10 +192,12 @@ export function compareAndSaveScoreHistory(guildName, members, options = {}) {
 
     nextHistory[member.nickname] = {
       currentScore: Number(member.score),
+      departedAt: null,
       firstSeenAt,
       increasedBy: scoreDelta ?? 0,
       isNewDuringSeason,
       lastCheckedAt: checkedAt,
+      lastSeenAt: checkedAt,
       lastIncreasedAt: scoreDelta > 0 ? checkedAt : previous?.lastIncreasedAt || null,
       nickname: member.nickname,
       prediction,
@@ -209,6 +212,18 @@ export function compareAndSaveScoreHistory(guildName, members, options = {}) {
             : scoreDelta === 0
               ? '점수 정체'
               : '점수 감소 감지',
+    }
+  })
+
+  Object.entries(previousHistory).forEach(([nickname, previous]) => {
+    if (currentNicknames.has(nickname)) return
+
+    nextHistory[nickname] = {
+      ...previous,
+      departedAt: previous.departedAt || checkedAt,
+      lastSeenAt: previous.lastSeenAt || previous.lastCheckedAt || null,
+      nickname: previous.nickname || nickname,
+      status: previous.departedAt ? previous.status : '\uD0C8\uD1F4 \uAC10\uC9C0',
     }
   })
 

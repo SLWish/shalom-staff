@@ -5,3 +5,6 @@
 
 [functions."collect-hourly"]
   schedule = "10,25,40,50,54 * * * *"
+
+[functions."collect-on-roster-change"]
+  schedule = "*/5 * * * *"

@@ -152,7 +152,7 @@ export async function fetchPlayerSeason(nickname) {
   }
 }
 
-export async function fetchGuildSeason(config) {
+export async function fetchGuildRoster(config) {
   const payload = await fetchJson(config.apiUrl)
   const memberArray = findFirstArray(payload)
   if (!memberArray) throw new Error(`Member array not found for ${config.guildName}`)
@@ -167,12 +167,23 @@ export async function fetchGuildSeason(config) {
     })
     .filter(Boolean)
 
-  const settled = await Promise.allSettled(members.map((member) => fetchPlayerSeason(member.nickname)))
-
   return {
     cutScore: config.cutScore,
     guildName: config.guildName,
-    members: members.map((member, index) => {
+    members,
+    seasonEndAt: getSeasonDate(payload, 'end'),
+    seasonStartAt: getSeasonDate(payload, 'start'),
+    type: config.type,
+  }
+}
+
+export async function fetchGuildSeason(config) {
+  const roster = await fetchGuildRoster(config)
+  const settled = await Promise.allSettled(roster.members.map((member) => fetchPlayerSeason(member.nickname)))
+
+  return {
+    ...roster,
+    members: roster.members.map((member, index) => {
       const detail = settled[index].status === 'fulfilled' ? settled[index].value : null
       return {
         ...member,
@@ -181,8 +192,5 @@ export async function fetchGuildSeason(config) {
         wave: typeof detail?.wave === 'number' ? detail.wave : null,
       }
     }),
-    seasonEndAt: getSeasonDate(payload, 'end'),
-    seasonStartAt: getSeasonDate(payload, 'start'),
-    type: config.type,
   }
 }

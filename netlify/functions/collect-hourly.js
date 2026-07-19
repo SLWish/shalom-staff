@@ -113,6 +113,21 @@ function buildSeasonArchive(guilds, capturedAt, seasonKey) {
         shortage: guild.cutScore - (Number(member.score) || 0),
       }))
       .sort((a, b) => b.shortage - a.shortage || a.score - b.score)
+    const members = (guild.members || [])
+      .map((member) => {
+        const score = Number(member.score) || 0
+        return {
+          achieved: score >= guild.cutScore,
+          cutScore: guild.cutScore,
+          lastRecordAt: member.apiDate || null,
+          nickname: member.nickname,
+          score,
+          shortage: Math.max(0, guild.cutScore - score),
+          wave: member.wave ?? null,
+        }
+      })
+      .filter((member) => member.nickname)
+      .sort((a, b) => b.score - a.score)
     const clearedCount = (guild.members || []).length - failedMembers.length
 
     return {
@@ -122,6 +137,7 @@ function buildSeasonArchive(guilds, capturedAt, seasonKey) {
       failedCount: failedMembers.length,
       failedMembers,
       guildName: guild.guildName,
+      members,
       tierLabel: `${index + 1}군`,
       totalMembers: guild.members.length,
     }

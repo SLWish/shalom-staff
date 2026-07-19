@@ -1139,6 +1139,27 @@
   font-weight: 900;
 }
 
+.member-name-list .member-score-block {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 74px;
+}
+
+.member-name-list .member-score-block strong {
+  min-width: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.member-name-list .member-score-block small {
+  color: rgba(247, 243, 212, 0.62);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .stopped-dot {
   flex: 0 0 auto;
   width: 12px;
@@ -1423,6 +1444,11 @@
 
 .archive-copy-box {
   margin-top: 14px;
+}
+
+.three-warning-copy-box {
+  margin-top: 12px;
+  border-color: rgba(243, 203, 64, 0.36);
 }
 
 .warning-accumulation-list {

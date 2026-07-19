@@ -130,9 +130,15 @@ function GuildSummaryCard({ guild, stats, summary }) {
 
       <div className="staff-summary-list">
         <SummaryList
-          emptyText="미달자 없음"
+          emptyText={
+            summary.showShortageMembers
+              ? '\uBBF8\uB2EC\uC790 \uC5C6\uC74C'
+              : summary.shortageHiddenCount > 0
+                ? `\uC2DC\uC98C \uB9C8\uC9C0\uB9C9 \uB0A0 \uACF5\uAC1C \u00B7 \uD604\uC7AC ${summary.shortageHiddenCount}\uBA85`
+                : '\uC2DC\uC98C \uB9C8\uC9C0\uB9C9 \uB0A0 \uACF5\uAC1C'
+          }
           items={summary.shortageMembers}
-          title="미달자 전체"
+          title={summary.showShortageMembers ? '\uBBF8\uB2EC\uC790 \uC804\uCCB4' : '\uBBF8\uB2EC\uC790 \uB9C8\uC9C0\uB9C9 \uB0A0 \uACF5\uAC1C'}
           renderItem={(member) => (
             <>
               <span className="member-name-main">

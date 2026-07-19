@@ -1,15 +1,26 @@
-export async function fetchSharedSeasonArchives() {
+const EMPTY_HISTORY = {
+  archives: [],
+  departures: [],
+  previousSeasonScores: [],
+}
+
+export async function fetchSharedHistory() {
   try {
     const response = await fetch('/.netlify/functions/history', {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
     })
 
-    if (!response.ok) return []
+    if (!response.ok) return EMPTY_HISTORY
 
     const payload = await response.json()
-    return Array.isArray(payload.archives) ? payload.archives : []
+
+    return {
+      archives: Array.isArray(payload.archives) ? payload.archives : [],
+      departures: Array.isArray(payload.departures) ? payload.departures : [],
+      previousSeasonScores: Array.isArray(payload.previousSeasonScores) ? payload.previousSeasonScores : [],
+    }
   } catch {
-    return []
+    return EMPTY_HISTORY
   }
 }
