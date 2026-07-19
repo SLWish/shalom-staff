@@ -29,6 +29,7 @@ const GUILD_NICKNAME_PATTERN = /^SL_/
 const INVALID_GUILD_NICKNAME_PATTERN = /^5L_/i
 const MANUAL_LEADER_STORAGE_KEY = 'shalomInfo_manualGuildLeaders'
 const MOVE_SCOPE_ALL = 'all'
+const WARNING_EFFECTIVE_FROM_AT = '2026-07-19T15:00:00Z'
 
 function createDefaultCutScores() {
   return Object.fromEntries(activeGuildConfigs.map((config) => [config.guildName, config.defaultCutScore]))
@@ -864,8 +865,9 @@ function getArchiveFailureCountText(groups) {
 
 function getWarningAccumulations(archives) {
   const warningMap = new Map()
+  const warningEffectiveFromTime = getValidRecordTime(WARNING_EFFECTIVE_FROM_AT) ?? 0
 
-  archives.forEach((archive) => {
+  archives.filter((archive) => (getValidRecordTime(archive.seasonStartAt) ?? 0) >= warningEffectiveFromTime).forEach((archive) => {
     const archiveTime = getValidRecordTime(archive.savedAt) ?? getValidRecordTime(archive.seasonEndAt) ?? 0
 
     getArchiveFailureGroups(archive).forEach((group, index) => {
