@@ -12,6 +12,7 @@ const SEASON_END_BUFFER_MS = 5 * 60 * 1000
 const ONE_SECOND_MS = 1000
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputDirectory = path.resolve(process.env.WPH_OUTPUT_DIR || path.join(projectRoot, 'WPH-records'))
+const stopRequestPath = path.join(outputDirectory, '.stop-request')
 const selectedGuilds = getSelectedGuilds(process.env.WPH_GUILDS)
 const runOnce = process.argv.includes('--once')
 
@@ -314,6 +315,7 @@ function buildReportLines(windowState, currentScores, endedAt, label = '1시간 
 
 async function acquireLock() {
   await mkdir(outputDirectory, { recursive: true })
+  await rm(stopRequestPath, { force: true })
   const lockPath = path.join(outputDirectory, '.recorder.lock')
 
   try {
@@ -374,6 +376,11 @@ async function main() {
   }
 
   while (!stopped) {
+    if (await fileExists(stopRequestPath)) {
+      await rm(stopRequestPath, { force: true })
+      break
+    }
+
     const tickStartedAt = Date.now()
     try {
       const { errors, guilds } = await fetchGuilds()
