@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildReport,
   formatScoreBreakdown,
   getNextCheckpointTime,
   getNextHourStartTime,
@@ -71,4 +72,22 @@ test('hourly WPH checkpoints follow 55, 10, 25, 40, 55', () => {
   assert.equal(new Date(getNextCheckpointTime(atFivePast)).toISOString(), '2026-07-20T19:10:00.000Z')
   assert.equal(new Date(getNextCheckpointTime(justAfterFiftyFive, true)).toISOString(), '2026-07-20T19:55:00.000Z')
   assert.equal(new Date(getNextHourStartTime(atFivePast)).toISOString(), '2026-07-20T19:55:00.000Z')
+})
+
+test('hourly report keeps the detailed jump expression for web upload', () => {
+  const memberKey = 'ShaLom\u0000SL_Wish'
+  const windowState = {
+    deltas: new Map([[memberKey, [6, 6, 7, 30]]]),
+    startedAt: Date.parse('2026-07-20T19:55:00.000Z'),
+    startScores: new Map([[memberKey, 1000]]),
+  }
+  const report = buildReport(
+    windowState,
+    new Map([[memberKey, 1049]]),
+    Date.parse('2026-07-20T20:55:00.000Z'),
+  )
+
+  assert.equal(report.members[0].detail, '4x6+24+1')
+  assert.equal(report.members[0].wph, 49)
+  assert.match(report.text, /4x6\+24\+1 = 49 WPH/)
 })

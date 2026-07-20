@@ -13,6 +13,7 @@ const ONE_SECOND_MS = 1000
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputDirectory = path.resolve(process.env.WPH_OUTPUT_DIR || path.join(projectRoot, 'WPH-records'))
 const stopRequestPath = path.join(outputDirectory, '.stop-request')
+const uploadUrl = process.env.WPH_UPLOAD_URL || 'https://shalom-staff.netlify.app/.netlify/functions/local-wph'
 const selectedGuilds = getSelectedGuilds(process.env.WPH_GUILDS)
 const runOnce = process.argv.includes('--once')
 
@@ -305,9 +306,10 @@ function formatChangeLine(now, changes) {
   return `${formatKstTime(now)} | ${details.join('; ')}\r\n`
 }
 
-function buildReportLines(windowState, currentScores, endedAt, label = '1시간 WPH') {
+export function buildReport(windowState, currentScores, endedAt, label = '1시간 WPH') {
   const elapsedMinutes = Math.max(0, (endedAt - windowState.startedAt) / 60000)
   const byGuild = new Map(selectedGuilds.map((guildName) => [guildName, []]))
+  const reportMembers = []
 
   currentScores.forEach((currentScore, key) => {
     const startScore = windowState.startScores.get(key)
@@ -316,7 +318,9 @@ function buildReportLines(windowState, currentScores, endedAt, label = '1시간 
     if (!byGuild.has(guildName)) byGuild.set(guildName, [])
     const scoreDelta = currentScore - startScore
     const deltas = windowState.deltas.get(key) || []
-    byGuild.get(guildName).push({ detail: formatScoreBreakdown(deltas), nickname, scoreDelta })
+    const member = { detail: formatScoreBreakdown(deltas), guildName, nickname, scoreDelta, wph: scoreDelta }
+    byGuild.get(guildName).push(member)
+    reportMembers.push(member)
   })
 
   const lines = [
@@ -333,7 +337,45 @@ function buildReportLines(windowState, currentScores, endedAt, label = '1시간 
       })
   })
   lines.push('')
-  return `${lines.join('\r\n')}\r\n`
+  return {
+    endedAt,
+    members: reportMembers,
+    startedAt: windowState.startedAt,
+    text: `${lines.join('\r\n')}\r\n`,
+  }
+}
+
+async function getCollectSecret() {
+  if (process.env.COLLECT_SECRET) return process.env.COLLECT_SECRET
+  const envText = await readFile(path.join(projectRoot, '.env'), 'utf8').catch(() => '')
+  const line = envText.split(/\r?\n/).find((entry) => entry.trim().startsWith('COLLECT_SECRET='))
+  if (!line) return null
+  return line.slice(line.indexOf('=') + 1).trim().replace(/^['"]|['"]$/g, '') || null
+}
+
+async function uploadReport(report, activeSeason, slotAt, collectSecret) {
+  if (!collectSecret || report.members.length === 0) return { skipped: true }
+  const response = await fetch(uploadUrl, {
+    body: JSON.stringify({
+      members: report.members.map((member) => ({
+        detail: member.detail,
+        guildName: member.guildName,
+        nickname: member.nickname,
+        wph: member.wph,
+      })),
+      seasonKey: activeSeason.meta.key,
+      slotAt: new Date(slotAt).toISOString(),
+      windowStartAt: new Date(report.startedAt).toISOString(),
+    }),
+    headers: {
+      Authorization: `Bearer ${collectSecret}`,
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || `웹 업로드 실패 ${response.status}`)
+  return payload
 }
 
 async function acquireLock() {
@@ -366,6 +408,7 @@ async function acquireLock() {
 
 async function main() {
   const lockPath = await acquireLock()
+  const collectSecret = await getCollectSecret()
   let stopped = false
   let active = null
   let lastHeartbeatAt = 0
@@ -389,7 +432,16 @@ async function main() {
       const elapsed = Date.now() - windowState.startedAt
       if (elapsed >= 60000) {
         const label = elapsed >= 55 * 60 * 1000 ? '1시간 WPH' : '마지막 구간'
-        await appendText(active.filePath, buildReportLines(windowState, lastScores, Date.now(), label))
+        const report = buildReport(windowState, lastScores, Date.now(), label)
+        await appendText(active.filePath, report.text)
+        if (label === '1시간 WPH') {
+          try {
+            await uploadReport(report, active, active.meta.transitionAt, collectSecret)
+            await appendText(active.filePath, `[웹 반영 완료] ${formatKstDateTime(Date.now())}\r\n`)
+          } catch (error) {
+            await appendText(active.filePath, `[웹 반영 오류] ${formatKstDateTime(Date.now())} | ${error.message}\r\n`)
+          }
+        }
       }
       await appendText(active.filePath, `[시즌 기록 종료] ${formatKstDateTime(Date.now())}\r\n`)
     }
@@ -490,7 +542,14 @@ async function main() {
           const checkpointMinute = Number(getKstParts(nextCheckpointAt).minute)
           if (checkpointMinute === 55) {
             if (windowState) {
-              await appendText(active.filePath, buildReportLines(windowState, currentScores, tickStartedAt))
+              const report = buildReport(windowState, currentScores, tickStartedAt)
+              await appendText(active.filePath, report.text)
+              try {
+                await uploadReport(report, active, nextCheckpointAt, collectSecret)
+                await appendText(active.filePath, `[웹 반영 완료] ${formatKstDateTime(tickStartedAt)}\r\n`)
+              } catch (error) {
+                await appendText(active.filePath, `[웹 반영 오류] ${formatKstDateTime(tickStartedAt)} | ${error.message}\r\n`)
+              }
               console.log(`[WPH] ${formatKstDateTime(tickStartedAt)} 1시간 결과 저장`)
             }
             windowState = createWindow(tickStartedAt, currentScores)

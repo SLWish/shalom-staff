@@ -11,6 +11,7 @@ const FALLBACK_SOURCE_MINUTE_MIN = 49
 const FALLBACK_SOURCE_MINUTE_MAX = 50
 const INTERVAL_COUNT = 4
 const GUILD_RANKING_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds'
+const LOCAL_WPH_GUILD_NAME = '__local_wph__'
 const MAX_NORMAL_WPH = 3000
 
 function json(statusCode, body) {
@@ -278,9 +279,9 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
             ? Math.max(0, currentPersonalScore - previousPersonalScore)
             : null
         if (waveDelta !== null && waveDelta > MAX_NORMAL_WPH) {
-          hourly.push({ scoreDelta: scoreDeltaForSlot, detailScoreDelta: personalScoreDeltaForSlot, waveDelta: null })
+          hourly.push({ scoreDelta: scoreDeltaForSlot, detailScoreDelta: personalScoreDeltaForSlot, slotAt: bySlot[index].slotAt, waveDelta: null })
         } else {
-          hourly.push({ scoreDelta: scoreDeltaForSlot, detailScoreDelta: personalScoreDeltaForSlot, waveDelta })
+          hourly.push({ scoreDelta: scoreDeltaForSlot, detailScoreDelta: personalScoreDeltaForSlot, slotAt: bySlot[index].slotAt, waveDelta })
         }
       }
 
@@ -309,6 +310,7 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
         downMinutes,
         endWave,
         hourly: hourlyValues,
+        hourlySlots: hourly.map((item) => item.slotAt),
         nickname: latestRow.nickname,
         projectedFinalScore,
         score: latestRow.score,
@@ -329,6 +331,58 @@ function buildGuildReportWithMeta(guildName, snapshots, guildMeta) {
     slotCount: snapshots.length,
     windowEndAt: latestSnapshot.slotAt,
     windowStartAt: firstSnapshot.slotAt,
+  }
+}
+
+function getHourKey(value) {
+  const time = toTime(value)
+  return time === null ? null : new Date(time).toISOString().slice(0, 13)
+}
+
+export function mergeLocalWph(report, localRows) {
+  if (!report?.members?.length || !localRows.length) return report
+  const rowsByNickname = localRows.reduce((grouped, row) => {
+    const raw = row.raw_json || {}
+    if (raw.guildName !== report.guildName || !raw.nickname) return grouped
+    if (!grouped[raw.nickname]) grouped[raw.nickname] = []
+    grouped[raw.nickname].push({
+      detail: String(raw.detail || row.score || 0),
+      slotAt: row.captured_at,
+      value: Number(raw.wph ?? row.score),
+    })
+    return grouped
+  }, {})
+
+  return {
+    ...report,
+    members: report.members.map((member) => {
+      const entries = new Map()
+      member.hourly.forEach((value, index) => {
+        const slotAt = member.hourlySlots?.[index]
+        const key = getHourKey(slotAt)
+        if (!key) return
+        entries.set(key, { detail: member.detailHourly?.[index] || String(value ?? 0), slotAt, value })
+      })
+      ;(rowsByNickname[member.nickname] || []).forEach((entry) => {
+        const key = getHourKey(entry.slotAt)
+        if (key && Number.isFinite(entry.value)) entries.set(key, entry)
+      })
+
+      const merged = [...entries.values()]
+        .sort((a, b) => toTime(a.slotAt) - toTime(b.slotAt))
+        .slice(-INTERVAL_COUNT)
+      const validValues = merged.map((entry) => entry.value).filter(Number.isFinite)
+      return {
+        ...member,
+        averageWph:
+          validValues.length > 0
+            ? Math.round(validValues.reduce((sum, value) => sum + value, 0) / validValues.length)
+            : member.averageWph,
+        detailHourly: merged.map((entry) => entry.detail),
+        hourly: merged.map((entry) => entry.value),
+        hourlySlots: merged.map((entry) => entry.slotAt),
+      }
+    }),
   }
 }
 
@@ -370,12 +424,15 @@ async function fetchGuildRanks() {
 export async function handler() {
   try {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString()
-    const [rows, guildRows, ranks] = await Promise.all([
+    const [rows, guildRows, localWphRows, ranks] = await Promise.all([
       selectRows(
         `member_snapshots?select=guild_name,nickname,score,wave,api_date,captured_at,season_key,raw_json&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=3000`,
       ),
       selectRows(
         `guild_snapshots?select=guild_name,captured_at,raw_json&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=100`,
+      ),
+      selectRows(
+        `member_snapshots?select=captured_at,score,raw_json&guild_name=eq.${encodeURIComponent(LOCAL_WPH_GUILD_NAME)}&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=500`,
       ),
       fetchGuildRanks(),
     ])
@@ -384,7 +441,7 @@ export async function handler() {
     const guilds = Object.fromEntries(
       REPORT_GUILDS.map((guildName) => {
         const report = buildGuildReportWithMeta(guildName, snapshotsByGuild[guildName] || [], guildMeta[guildName])
-        return [guildName, { ...report, rank: ranks[guildName] || null }]
+        return [guildName, { ...mergeLocalWph(report, localWphRows), rank: ranks[guildName] || null }]
       }),
     )
 

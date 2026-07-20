@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "wph:record": "node tools/wph-recorder.mjs",
-    "wph:test": "node --test tools/wph-recorder.test.mjs"
+    "wph:test": "node --test tools/wph-recorder.test.mjs netlify/functions/wph-report.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.7",

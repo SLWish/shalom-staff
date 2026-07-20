@@ -101,12 +101,12 @@ async function getPreviousSeasonScores(archive) {
   const capturedAt = archiveJson.recoveredFromSnapshotAt || archiveJson.savedAt || archive.saved_at
   const capturedFilter = capturedAt ? `&captured_at=eq.${encodeURIComponent(capturedAt)}` : ''
   let members = await selectRows(
-    `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}${capturedFilter}&limit=200`,
+    `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__${capturedFilter}&limit=200`,
   )
 
   if (members.length === 0) {
     members = await selectRows(
-      `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&order=captured_at.desc&limit=200`,
+      `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&order=captured_at.desc&limit=200`,
     )
   }
 
