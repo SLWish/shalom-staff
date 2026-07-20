@@ -14,7 +14,7 @@ import {
   mergeMembersWithHistory,
   readScoreHistory,
 } from './services/scoreHistory.js'
-import { createSeasonArchive, readSeasonArchives, shouldAutoArchive, upsertSeasonArchive } from './services/seasonArchive.js'
+import { createSeasonArchive, isFinalizedSeasonArchive, readSeasonArchives, shouldAutoArchive, upsertSeasonArchive } from './services/seasonArchive.js'
 import { fetchSharedHistory } from './services/serverHistoryApi.js'
 import { fetchSeasonSummary } from './services/seasonSummaryApi.js'
 import { getLatestWphRecords } from './services/wphHistory.js'
@@ -1504,7 +1504,8 @@ function ThreeWarningCopyBox({ archives }) {
 function AttentionPage({ archiveStatus, archives }) {
   const [selectedArchiveKey, setSelectedArchiveKey] = useState(null)
   const [isSeasonPickerOpen, setIsSeasonPickerOpen] = useState(false)
-  const selectedArchive = archives.find((archive) => archive.seasonKey === selectedArchiveKey) || null
+  const finalizedArchives = archives.filter(isFinalizedSeasonArchive)
+  const selectedArchive = finalizedArchives.find((archive) => archive.seasonKey === selectedArchiveKey) || null
 
   return (
     <PageShell eyebrow="Warning Records" title="경고 기록">
@@ -1521,7 +1522,7 @@ function AttentionPage({ archiveStatus, archives }) {
           시즌 날짜를 누르면 해당 시즌 미달자 목록이 열립니다.
         </p>
         {archiveStatus && <p className="archive-status">{archiveStatus}</p>}
-        {archives.length === 0 ? (
+        {finalizedArchives.length === 0 ? (
           <div className="empty-state compact-empty">
             저장된 과거 시즌 기록 없음
             <br />
@@ -1546,7 +1547,7 @@ function AttentionPage({ archiveStatus, archives }) {
 
             {isSeasonPickerOpen && (
               <div className="archive-picker-options">
-                {archives.map((archive) => {
+                {finalizedArchives.map((archive) => {
                   return (
                     <button
                       type="button"
@@ -1583,10 +1584,10 @@ function AttentionPage({ archiveStatus, archives }) {
             )}
           </div>
         )}
-        {archives.length > 0 && !selectedArchive && <ThreeWarningCopyBox archives={archives} />}
+        {finalizedArchives.length > 0 && !selectedArchive && <ThreeWarningCopyBox archives={finalizedArchives} />}
       </section>
 
-      {selectedArchive ? <ArchiveDetail archive={selectedArchive} /> : <WarningAccumulationList archives={archives} />}
+      {selectedArchive ? <ArchiveDetail archive={selectedArchive} /> : <WarningAccumulationList archives={finalizedArchives} />}
       <StaffNotice />
     </PageShell>
   )
@@ -2245,7 +2246,7 @@ function App() {
     let isMounted = true
     fetchSharedHistory().then((sharedHistory) => {
       if (!isMounted) return
-      if (sharedHistory.archives.length > 0) setArchives(sharedHistory.archives)
+      if (sharedHistory.archives.length > 0) setArchives(sharedHistory.archives.filter(isFinalizedSeasonArchive))
       setServerDepartedMembers(sharedHistory.departures)
       setServerPreviousSeasonScores(sharedHistory.previousSeasonScores)
     })

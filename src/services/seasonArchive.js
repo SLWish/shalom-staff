@@ -1,5 +1,6 @@
 const ARCHIVE_KEY = 'shalomInfo_seasonArchives'
 const MAX_ARCHIVE_COUNT = 3
+const ARCHIVE_TARGET_TOLERANCE_MS = 10 * 60 * 1000
 
 function toTime(value) {
   const text = String(value || '')
@@ -30,14 +31,30 @@ export function readSeasonArchives() {
 
   try {
     const archives = JSON.parse(window.localStorage.getItem(ARCHIVE_KEY) || '[]')
-    return Array.isArray(archives) ? archives : []
+    if (!Array.isArray(archives)) return []
+
+    const finalizedArchives = archives.filter(isFinalizedSeasonArchive)
+    if (finalizedArchives.length !== archives.length) {
+      writeSeasonArchives(finalizedArchives)
+    }
+
+    return finalizedArchives
   } catch {
     return []
   }
 }
 
 export function writeSeasonArchives(archives) {
-  window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archives))
+  window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archives.filter(isFinalizedSeasonArchive)))
+}
+
+export function isFinalizedSeasonArchive(archive) {
+  const archiveTargetTime = toTime(archive?.archiveTargetAt)
+  const savedTime = toTime(archive?.savedAt)
+  const seasonEndTime = toTime(archive?.seasonEndAt)
+  if (archiveTargetTime === null || savedTime === null || seasonEndTime === null) return false
+
+  return savedTime >= archiveTargetTime - ARCHIVE_TARGET_TOLERANCE_MS && savedTime <= seasonEndTime + ARCHIVE_TARGET_TOLERANCE_MS
 }
 
 export function createSeasonArchive(guilds, saveType = 'auto') {

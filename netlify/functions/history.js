@@ -1,5 +1,7 @@
 import { selectRows } from './_shared/supabaseRest.js'
 
+const ARCHIVE_TARGET_TOLERANCE_MS = 10 * 60 * 1000
+
 function json(statusCode, body) {
   return {
     body: JSON.stringify(body),
@@ -77,6 +79,21 @@ function normalizeArchive(archive) {
   }
 }
 
+function toTime(value) {
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+function isFinalizedArchive(archive) {
+  const archiveJson = archive.archive_json || {}
+  const archiveTargetTime = toTime(archive.archive_target_at || archiveJson.archiveTargetAt)
+  const savedTime = toTime(archive.saved_at || archiveJson.savedAt)
+  const seasonEndTime = toTime(archive.season_end_at || archiveJson.seasonEndAt)
+  if (archiveTargetTime === null || savedTime === null || seasonEndTime === null) return false
+
+  return savedTime >= archiveTargetTime - ARCHIVE_TARGET_TOLERANCE_MS && savedTime <= seasonEndTime + ARCHIVE_TARGET_TOLERANCE_MS
+}
+
 async function getPreviousSeasonScores(archive) {
   if (!archive?.season_key) return []
 
@@ -139,7 +156,8 @@ export async function handler() {
       }
     }
 
-    const archives = await selectRows('season_archives?select=*&order=saved_at.desc&limit=3')
+    const archiveRows = await selectRows('season_archives?select=*&order=saved_at.desc&limit=8')
+    const archives = archiveRows.filter(isFinalizedArchive).slice(0, 3)
     const previousSeasonScores = await getPreviousSeasonScores(archives[0])
 
     return json(200, {
