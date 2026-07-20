@@ -9,10 +9,12 @@ const API_BASE_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds
 const POLL_INTERVAL_MS = getPositiveNumber(process.env.WPH_POLL_SECONDS, 10) * 1000
 const HEARTBEAT_INTERVAL_MS = 10 * 60 * 1000
 const SEASON_END_BUFFER_MS = 5 * 60 * 1000
+const DOWN_GRACE_MS = 60 * 1000
 const ONE_SECOND_MS = 1000
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputDirectory = path.resolve(process.env.WPH_OUTPUT_DIR || path.join(projectRoot, 'WPH-records'))
 const stopRequestPath = path.join(outputDirectory, '.stop-request')
+const downStatePath = path.join(outputDirectory, '.down-state.json')
 const uploadUrl = process.env.WPH_UPLOAD_URL || 'https://shalom-staff.netlify.app/.netlify/functions/local-wph'
 const selectedGuilds = getSelectedGuilds(process.env.WPH_GUILDS)
 const runOnce = process.argv.includes('--once')
@@ -199,6 +201,92 @@ export function isCrystalSkipDelta(delta) {
   return [30, 20, 10].some((jump) => value >= jump && value - jump <= 2)
 }
 
+export function recordDownActivity(trackers, key, activityAt) {
+  const tracker = trackers.get(key)
+  if (!tracker || !tracker.active || !Number.isFinite(tracker.lastActivityAt)) {
+    trackers.set(key, {
+      accumulatedMs: Math.max(0, Number(tracker?.accumulatedMs) || 0),
+      active: true,
+      lastActivityAt: activityAt,
+    })
+    return
+  }
+
+  tracker.accumulatedMs += Math.max(0, activityAt - tracker.lastActivityAt - DOWN_GRACE_MS)
+  tracker.lastActivityAt = activityAt
+}
+
+export function getSeasonDownMinutes(tracker, referenceAt) {
+  if (!tracker) return 0
+  const ongoingMs = tracker.active && Number.isFinite(tracker.lastActivityAt)
+    ? Math.max(0, referenceAt - tracker.lastActivityAt - DOWN_GRACE_MS)
+    : 0
+  return Math.floor((Math.max(0, Number(tracker.accumulatedMs) || 0) + ongoingMs) / 60000)
+}
+
+function deactivateDownTracker(tracker, referenceAt) {
+  if (!tracker?.active || !Number.isFinite(tracker.lastActivityAt)) return
+  tracker.accumulatedMs += Math.max(0, referenceAt - tracker.lastActivityAt - DOWN_GRACE_MS)
+  tracker.active = false
+  tracker.lastActivityAt = null
+}
+
+function shiftDownTrackersForGuild(trackers, guildName, durationMs, referenceAt) {
+  if (durationMs <= 0) return
+  trackers.forEach((tracker, key) => {
+    if (!tracker.active || splitMemberKey(key).guildName !== guildName || !Number.isFinite(tracker.lastActivityAt)) return
+    tracker.lastActivityAt = Math.min(referenceAt, tracker.lastActivityAt + durationMs)
+  })
+}
+
+function normalizeDownTrackers(trackers, currentScores, fetchedGuildNames, referenceAt) {
+  currentScores.forEach((_, key) => {
+    const tracker = trackers.get(key)
+    if (!tracker?.active) recordDownActivity(trackers, key, referenceAt)
+  })
+
+  trackers.forEach((tracker, key) => {
+    const { guildName } = splitMemberKey(key)
+    if (fetchedGuildNames.has(guildName) && !currentScores.has(key)) deactivateDownTracker(tracker, referenceAt)
+  })
+}
+
+async function readDownState(seasonKey, referenceAt) {
+  const payload = JSON.parse(await readFile(downStatePath, 'utf8').catch(() => 'null'))
+  const trackers = new Map()
+  if (payload?.seasonKey !== seasonKey || !Array.isArray(payload.members)) return null
+
+  payload.members.forEach((member) => {
+    const key = getMemberKey(String(member?.guildName || ''), String(member?.nickname || ''))
+    const accumulatedMs = Math.max(0, Number(member?.accumulatedMs) || 0)
+    const inactivityMs = Math.min(DOWN_GRACE_MS, Math.max(0, Number(member?.inactivityMs) || 0))
+    if (!member?.guildName || !member?.nickname) return
+    trackers.set(key, {
+      accumulatedMs,
+      active: Boolean(member?.active),
+      lastActivityAt: member?.active ? referenceAt - inactivityMs : null,
+    })
+  })
+  return trackers
+}
+
+async function writeDownState(seasonKey, trackers, referenceAt) {
+  const members = [...trackers.entries()].map(([key, tracker]) => {
+    const { guildName, nickname } = splitMemberKey(key)
+    const active = Boolean(tracker.active && Number.isFinite(tracker.lastActivityAt))
+    const ongoingMs = active ? Math.max(0, referenceAt - tracker.lastActivityAt - DOWN_GRACE_MS) : 0
+    const inactivityMs = active ? Math.min(DOWN_GRACE_MS, Math.max(0, referenceAt - tracker.lastActivityAt)) : 0
+    return {
+      accumulatedMs: Math.max(0, Number(tracker.accumulatedMs) || 0) + ongoingMs,
+      active,
+      guildName,
+      inactivityMs,
+      nickname,
+    }
+  })
+  await writeFile(downStatePath, JSON.stringify({ members, savedAt: new Date(referenceAt).toISOString(), seasonKey }), 'utf8')
+}
+
 function parseKstDateTime(value) {
   const match = String(value).match(/^(\d{4})\.(\d{2})\.(\d{2}) (\d{2}):(\d{2}):(\d{2})$/)
   if (!match) return null
@@ -222,11 +310,34 @@ function parseChangeLine(line) {
 }
 
 export function parseRecorderText(text) {
+  const downTrackers = new Map()
+  const trackerSessionIds = new Map()
   const seasonSkips = new Map()
+  let currentDate = null
+  let lastChangeAt = null
+  let sessionId = 0
   let windowDeltas = new Map()
   let windowStartedAt = null
 
   String(text).split(/\r?\n/).forEach((line) => {
+    const datedMarker = line.match(/^\[([^\]]+)\] (\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2})/)
+    if (datedMarker) {
+      const markerAt = parseKstDateTime(datedMarker[2])
+      currentDate = datedMarker[2].slice(0, 10)
+      lastChangeAt = markerAt
+      if (datedMarker[1] === '기록기 시작') {
+        sessionId += 1
+        downTrackers.forEach((tracker) => {
+          tracker.active = false
+          tracker.lastActivityAt = null
+        })
+      } else if (datedMarker[1] === '기록기 종료' && markerAt !== null) {
+        downTrackers.forEach((tracker, key) => {
+          if (trackerSessionIds.get(key) === sessionId) deactivateDownTracker(tracker, markerAt)
+        })
+      }
+    }
+
     const windowMatch = line.match(/^\[1시간 기준\] (\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}) \| 55분 시작$/)
     if (windowMatch) {
       windowStartedAt = parseKstDateTime(windowMatch[1])
@@ -234,8 +345,26 @@ export function parseRecorderText(text) {
       return
     }
 
-    parseChangeLine(line).forEach(({ delta, key }) => {
+    const changes = parseChangeLine(line)
+    if (changes.length === 0) return
+    const timeText = line.slice(0, 8)
+    let changeAt = currentDate ? parseKstDateTime(`${currentDate} ${timeText}`) : null
+    if (changeAt !== null && lastChangeAt !== null && changeAt < lastChangeAt - 12 * 60 * 60 * 1000) {
+      changeAt += 24 * 60 * 60 * 1000
+      currentDate = formatKstDate(changeAt)
+    }
+    if (changeAt !== null) lastChangeAt = changeAt
+
+    changes.forEach(({ delta, key }) => {
       if (isCrystalSkipDelta(delta)) seasonSkips.set(key, (seasonSkips.get(key) || 0) + 1)
+      if (changeAt !== null && sessionId > 0) {
+        if (trackerSessionIds.get(key) !== sessionId) {
+          const previousAccumulated = downTrackers.get(key)?.accumulatedMs || 0
+          downTrackers.set(key, { accumulatedMs: previousAccumulated, active: false, lastActivityAt: null })
+          trackerSessionIds.set(key, sessionId)
+        }
+        recordDownActivity(downTrackers, key, changeAt)
+      }
       if (windowStartedAt !== null) {
         if (!windowDeltas.has(key)) windowDeltas.set(key, [])
         windowDeltas.get(key).push(delta)
@@ -243,7 +372,7 @@ export function parseRecorderText(text) {
     })
   })
 
-  return { seasonSkips, windowDeltas, windowStartedAt }
+  return { downTrackers, seasonSkips, windowDeltas, windowStartedAt }
 }
 
 async function readRecorderHistory(filePath) {
@@ -298,7 +427,11 @@ async function fetchGuilds() {
     else errors.push(`${selectedGuilds[index]}: ${result.reason?.message || '조회 실패'}`)
   })
 
-  if (guilds.length === 0) throw new Error(errors.join(', ') || '모든 길드 API 조회 실패')
+  if (guilds.length === 0) {
+    const error = new Error(errors.join(', ') || '모든 길드 API 조회 실패')
+    error.allGuildsUnavailable = true
+    throw error
+  }
   return { errors, guilds }
 }
 
@@ -372,7 +505,14 @@ function formatChangeLine(now, changes) {
   return `${formatKstTime(now)} | ${details.join('; ')}\r\n`
 }
 
-export function buildReport(windowState, currentScores, endedAt, label = '1시간 WPH', seasonSkipTotals = new Map()) {
+export function buildReport(
+  windowState,
+  currentScores,
+  endedAt,
+  label = '1시간 WPH',
+  seasonSkipTotals = new Map(),
+  seasonDownTrackers = new Map(),
+) {
   const elapsedMinutes = Math.max(0, (endedAt - windowState.startedAt) / 60000)
   const byGuild = new Map(selectedGuilds.map((guildName) => [guildName, []]))
   const reportMembers = []
@@ -390,6 +530,7 @@ export function buildReport(windowState, currentScores, endedAt, label = '1시�
       hourlySkips: deltas.filter(isCrystalSkipDelta).length,
       nickname,
       scoreDelta,
+      seasonDownMinutes: getSeasonDownMinutes(seasonDownTrackers.get(key), endedAt),
       seasonSkips: seasonSkipTotals.get(key) || 0,
       wph: scoreDelta,
     }
@@ -436,6 +577,7 @@ async function uploadReport(report, activeSeason, slotAt, collectSecret) {
         guildName: member.guildName,
         hourlySkips: member.hourlySkips,
         nickname: member.nickname,
+        seasonDownMinutes: member.seasonDownMinutes,
         seasonSkips: member.seasonSkips,
         wph: member.wph,
       })),
@@ -492,13 +634,18 @@ async function main() {
   let oldSeasonScores = new Map()
   let nextCheckpointAt = null
   let restoredWindow = null
+  let seasonDownTrackers = new Map()
   let seasonSkipTotals = new Map()
+  const unavailableGuildSince = new Map()
   let windowState = null
 
   const stop = async () => {
     if (stopped) return
     stopped = true
-    if (active?.filePath) await appendText(active.filePath, `[기록기 종료] ${formatKstDateTime(Date.now())}\r\n`)
+    if (active?.filePath) {
+      await writeDownState(active.meta.key, seasonDownTrackers, Date.now()).catch(() => {})
+      await appendText(active.filePath, `[기록기 종료] ${formatKstDateTime(Date.now())}\r\n`)
+    }
     await rm(lockPath, { force: true })
   }
 
@@ -510,7 +657,7 @@ async function main() {
       const elapsed = Date.now() - windowState.startedAt
       if (elapsed >= 60000) {
         const label = elapsed >= 55 * 60 * 1000 ? '1시간 WPH' : '마지막 구간'
-        const report = buildReport(windowState, lastScores, Date.now(), label, seasonSkipTotals)
+        const report = buildReport(windowState, lastScores, Date.now(), label, seasonSkipTotals, seasonDownTrackers)
         await appendText(active.filePath, report.text)
         if (label === '1시간 WPH') {
           try {
@@ -530,6 +677,7 @@ async function main() {
     lastScores = new Map()
     nextCheckpointAt = null
     restoredWindow = recorderHistory.windowStartedAt === null ? null : recorderHistory
+    seasonDownTrackers = await readDownState(meta.key, Date.now()).catch(() => null) || recorderHistory.downTrackers
     seasonSkipTotals = recorderHistory.seasonSkips
     windowState = null
     lastHeartbeatAt = Date.now()
@@ -547,6 +695,19 @@ async function main() {
       const { errors, guilds } = await fetchGuilds()
       const apiSeason = getPrimarySeason(guilds)
       const currentScores = createScoreMap(guilds)
+      const fetchedGuildNames = new Set(guilds.map((guild) => guild.guildName))
+
+      selectedGuilds.forEach((guildName) => {
+        if (!fetchedGuildNames.has(guildName)) {
+          if (!unavailableGuildSince.has(guildName)) unavailableGuildSince.set(guildName, tickStartedAt)
+          return
+        }
+        const unavailableSince = unavailableGuildSince.get(guildName)
+        if (Number.isFinite(unavailableSince)) {
+          shiftDownTrackersForGuild(seasonDownTrackers, guildName, tickStartedAt - unavailableSince, tickStartedAt)
+          unavailableGuildSince.delete(guildName)
+        }
+      })
 
       if (!active) {
         if (!apiSeason) throw new Error('시즌 날짜 확인 실패')
@@ -581,6 +742,8 @@ async function main() {
           }
           active.awaitingReset = false
           lastScores = new Map([...currentScores.keys()].map((key) => [key, 0]))
+          seasonDownTrackers = new Map()
+          normalizeDownTrackers(seasonDownTrackers, currentScores, fetchedGuildNames, tickStartedAt)
           windowState = createWindow(tickStartedAt, lastScores)
           nextCheckpointAt = getNextCheckpointTime(tickStartedAt)
           await appendText(active.filePath, `[새 시즌 시작 확인] ${formatKstDateTime(tickStartedAt)} | 0점부터 이어서 기록\r\n`)
@@ -590,6 +753,7 @@ async function main() {
       if (!active.awaitingReset) {
         if (lastScores.size === 0) {
           lastScores = new Map(currentScores)
+          normalizeDownTrackers(seasonDownTrackers, currentScores, fetchedGuildNames, tickStartedAt)
           nextCheckpointAt = getNextCheckpointTime(tickStartedAt, true)
           const memberCount = [...currentScores.keys()].length
           const canRestoreWindow =
@@ -625,6 +789,7 @@ async function main() {
             if (!Number.isFinite(previous)) {
               lastScores.set(key, current)
               windowState?.startScores.set(key, current)
+              recordDownActivity(seasonDownTrackers, key, tickStartedAt)
               return
             }
             const delta = current - previous
@@ -632,12 +797,16 @@ async function main() {
               changes.push({ current, delta, key, previous })
               if (windowState) addDelta(windowState, key, delta)
               if (isCrystalSkipDelta(delta)) seasonSkipTotals.set(key, (seasonSkipTotals.get(key) || 0) + 1)
+              recordDownActivity(seasonDownTrackers, key, tickStartedAt)
             } else if (delta < 0) {
               windowState?.startScores.set(key, current)
               windowState?.deltas.delete(key)
+              recordDownActivity(seasonDownTrackers, key, tickStartedAt)
             }
             lastScores.set(key, current)
           })
+
+          normalizeDownTrackers(seasonDownTrackers, currentScores, fetchedGuildNames, tickStartedAt)
 
           if (changes.length > 0) await appendText(active.filePath, formatChangeLine(tickStartedAt, changes))
         }
@@ -646,7 +815,14 @@ async function main() {
           const checkpointMinute = Number(getKstParts(nextCheckpointAt).minute)
           if (checkpointMinute === 55) {
             if (windowState) {
-              const report = buildReport(windowState, currentScores, tickStartedAt, '1시간 WPH', seasonSkipTotals)
+              const report = buildReport(
+                windowState,
+                currentScores,
+                tickStartedAt,
+                '1시간 WPH',
+                seasonSkipTotals,
+                seasonDownTrackers,
+              )
               await appendText(active.filePath, report.text)
               try {
                 await uploadReport(report, active, nextCheckpointAt, collectSecret)
@@ -666,12 +842,18 @@ async function main() {
       }
 
       if (errors.length > 0) await appendText(active.filePath, `[API 일부 오류] ${formatKstTime(tickStartedAt)} | ${errors.join(', ')}\r\n`)
+      await writeDownState(active.meta.key, seasonDownTrackers, tickStartedAt)
       if (tickStartedAt - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
         const status = active.awaitingReset ? '새 시즌 점수 초기화 확인 중' : '정상'
         await appendText(active.filePath, `[정상 확인] ${formatKstTime(tickStartedAt)} | ${status}\r\n`)
         lastHeartbeatAt = tickStartedAt
       }
     } catch (error) {
+      if (error.allGuildsUnavailable) {
+        selectedGuilds.forEach((guildName) => {
+          if (!unavailableGuildSince.has(guildName)) unavailableGuildSince.set(guildName, tickStartedAt)
+        })
+      }
       console.error(`[WPH] ${formatKstDateTime(Date.now())} ${error.message}`)
       if (active?.filePath) await appendText(active.filePath, `[오류] ${formatKstDateTime(Date.now())} | ${error.message}\r\n`)
     }

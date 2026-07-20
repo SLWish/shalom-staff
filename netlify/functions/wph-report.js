@@ -353,6 +353,7 @@ export function mergeLocalWph(report, localRows) {
     if (!grouped[raw.nickname]) grouped[raw.nickname] = []
     grouped[raw.nickname].push({
       detail: String(raw.detail || row.score || 0),
+      seasonDownMinutes: Number(raw.seasonDownMinutes),
       seasonSkips: Number(raw.seasonSkips),
       slotAt: row.captured_at,
       value: Number(raw.wph ?? row.score),
@@ -382,6 +383,9 @@ export function mergeLocalWph(report, localRows) {
       const latestSeasonSkips = [...(rowsByNickname[member.nickname] || [])]
         .filter((entry) => Number.isFinite(entry.seasonSkips))
         .sort((a, b) => toTime(b.slotAt) - toTime(a.slotAt))[0]?.seasonSkips
+      const latestSeasonDownMinutes = [...(rowsByNickname[member.nickname] || [])]
+        .filter((entry) => Number.isFinite(entry.seasonDownMinutes))
+        .sort((a, b) => toTime(b.slotAt) - toTime(a.slotAt))[0]?.seasonDownMinutes
       return {
         ...member,
         averageWph:
@@ -389,6 +393,7 @@ export function mergeLocalWph(report, localRows) {
             ? Math.round(validValues.reduce((sum, value) => sum + value, 0) / validValues.length)
             : member.averageWph,
         detailHourly: merged.map((entry) => entry.detail),
+        downMinutes: Number.isFinite(latestSeasonDownMinutes) ? latestSeasonDownMinutes : member.downMinutes,
         hourly: merged.map((entry) => entry.value),
         hourlySlots: merged.map((entry) => entry.slotAt),
         skips: Number.isFinite(latestSeasonSkips) ? latestSeasonSkips : member.skips,

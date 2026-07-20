@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   buildReport,
   formatScoreBreakdown,
+  getSeasonDownMinutes,
   getNextCheckpointTime,
   getNextHourStartTime,
   getSeasonFileName,
@@ -11,6 +12,7 @@ import {
   isSeasonScoreReset,
   parseRecorderText,
   predictNextSeason,
+  recordDownActivity,
   summarizeScoreDeltas,
 } from './wph-recorder.mjs'
 
@@ -122,4 +124,32 @@ test('hourly report keeps the detailed jump expression for web upload', () => {
   assert.equal(report.members[0].detail, '4x6+24+1')
   assert.equal(report.members[0].wph, 49)
   assert.match(report.text, /4x6\+24\+1 = 49 WPH/)
+})
+
+test('down time starts only after 60 seconds without a score increase', () => {
+  const key = 'ShaLom\u0000SL_Wish'
+  const trackers = new Map()
+  recordDownActivity(trackers, key, 0)
+
+  assert.equal(getSeasonDownMinutes(trackers.get(key), 40000), 0)
+  assert.equal(getSeasonDownMinutes(trackers.get(key), 180000), 2)
+
+  recordDownActivity(trackers, key, 180000)
+  recordDownActivity(trackers, key, 360000)
+  assert.equal(getSeasonDownMinutes(trackers.get(key), 360000), 4)
+})
+
+test('down time is restored from score changes without counting recorder downtime', () => {
+  const key = 'ShaLom\u0000SL_Wish'
+  const text = [
+    '[기록기 시작] 2026.07.21 04:00:00',
+    '04:00:00 | ShaLom/SL_Wish +6 (100→106)',
+    '04:03:00 | ShaLom/SL_Wish +6 (106→112)',
+    '[기록기 종료] 2026.07.21 04:05:00',
+    '[기록기 시작] 2026.07.21 05:00:00',
+    '05:01:00 | ShaLom/SL_Wish +6 (112→118)',
+  ].join('\r\n')
+  const history = parseRecorderText(text)
+
+  assert.equal(getSeasonDownMinutes(history.downTrackers.get(key), Date.parse('2026-07-20T20:02:00.000Z')), 3)
 })

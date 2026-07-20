@@ -26,6 +26,7 @@ test('local 10-second report replaces the matching server hour and detail', () =
         detail: '172x6+264+102',
         guildName: 'ShaLom',
         nickname: 'SL_Wish',
+        seasonDownMinutes: 37,
         seasonSkips: 11,
         wph: 1398,
       },
@@ -38,5 +39,6 @@ test('local 10-second report replaces the matching server hour and detail', () =
   assert.deepEqual(merged.members[0].hourly, [1398])
   assert.deepEqual(merged.members[0].detailHourly, ['172x6+264+102'])
   assert.equal(merged.members[0].averageWph, 1398)
+  assert.equal(merged.members[0].downMinutes, 37)
   assert.equal(merged.members[0].skips, 11)
 })

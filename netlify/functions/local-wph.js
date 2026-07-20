@@ -30,14 +30,16 @@ function normalizeMember(member) {
   const nickname = String(member?.nickname || '').trim()
   const detail = String(member?.detail || '').trim()
   const hourlySkips = Number(member?.hourlySkips)
+  const seasonDownMinutes = Number(member?.seasonDownMinutes)
   const seasonSkips = Number(member?.seasonSkips)
   const wph = Number(member?.wph)
   if (!ALLOWED_GUILDS.has(guildName) || !nickname || nickname.length > 80) return null
   if (!Number.isInteger(wph) || wph < 0 || wph > 10000) return null
   if (!Number.isInteger(hourlySkips) || hourlySkips < 0 || hourlySkips > 1000) return null
+  if (!Number.isInteger(seasonDownMinutes) || seasonDownMinutes < 0 || seasonDownMinutes > 100000) return null
   if (!Number.isInteger(seasonSkips) || seasonSkips < hourlySkips || seasonSkips > 100000) return null
   if (!detail || detail.length > 120) return null
-  return { detail, guildName, hourlySkips, nickname, seasonSkips, wph }
+  return { detail, guildName, hourlySkips, nickname, seasonDownMinutes, seasonSkips, wph }
 }
 
 export async function handler(event) {
@@ -74,6 +76,7 @@ export async function handler(event) {
           guildName: member.guildName,
           hourlySkips: member.hourlySkips,
           nickname: member.nickname,
+          seasonDownMinutes: member.seasonDownMinutes,
           seasonSkips: member.seasonSkips,
           source: 'local-wph-10s',
           windowStartAt,
