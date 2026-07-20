@@ -8,6 +8,9 @@ const PRIMARY_SOURCE_MINUTE_MAX = 56
 const FALLBACK_SOURCE_MINUTE_MIN = 49
 const FALLBACK_SOURCE_MINUTE_MAX = 50
 const MAX_NORMAL_WPH = 3000
+const PAGE_SIZE = 1000
+const PAGE_BATCH_SIZE = 5
+const MAX_MEMBER_ROWS = 50000
 
 function json(statusCode, body) {
   return {
@@ -60,17 +63,40 @@ function getSeasonLabel(row) {
   }
 }
 
-function getSeasonList(rows) {
+function isValidSeasonKey(value) {
+  return /^\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}$/.test(String(value || ''))
+}
+
+export function getSeasonList(rows) {
   const seen = new Set()
   const seasons = []
 
   rows.forEach((row) => {
-    if (!row.season_key || seen.has(row.season_key)) return
+    if (!isValidSeasonKey(row.season_key) || seen.has(row.season_key)) return
     seen.add(row.season_key)
     seasons.push(getSeasonLabel(row))
   })
 
   return seasons.slice(0, MAX_SEASONS)
+}
+
+export async function selectRowsPaged(path, selectPage = selectRows) {
+  const rows = []
+  const batchSize = PAGE_SIZE * PAGE_BATCH_SIZE
+
+  for (let batchOffset = 0; batchOffset < MAX_MEMBER_ROWS; batchOffset += batchSize) {
+    const pages = await Promise.all(
+      Array.from({ length: PAGE_BATCH_SIZE }, (_, index) => {
+        const offset = batchOffset + index * PAGE_SIZE
+        return selectPage(`${path}&limit=${PAGE_SIZE}&offset=${offset}`)
+      }),
+    )
+
+    pages.forEach((page) => rows.push(...page))
+    if (pages.some((page) => page.length < PAGE_SIZE)) break
+  }
+
+  return rows.slice(0, MAX_MEMBER_ROWS)
 }
 
 function chooseSnapshots(rows) {
@@ -259,8 +285,8 @@ export async function handler(event) {
       return json(200, { seasons: [], summary: null })
     }
 
-    const rows = await selectRows(
-      `member_snapshots?select=guild_name,nickname,wave,score,captured_at,api_date,season_key&guild_name=in.(${guildFilter})&season_key=eq.${encodeURIComponent(selectedSeason.seasonKey)}&order=captured_at.asc&limit=12000`,
+    const rows = await selectRowsPaged(
+      `member_snapshots?select=guild_name,nickname,wave,score,captured_at,api_date,season_key&guild_name=in.(${guildFilter})&season_key=eq.${encodeURIComponent(selectedSeason.seasonKey)}&order=captured_at.asc,guild_name.asc,nickname.asc`,
     )
 
     return json(200, {
