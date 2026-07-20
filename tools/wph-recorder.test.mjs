@@ -7,7 +7,9 @@ import {
   getNextCheckpointTime,
   getNextHourStartTime,
   getSeasonFileName,
+  isCrystalSkipDelta,
   isSeasonScoreReset,
+  parseRecorderText,
   predictNextSeason,
   summarizeScoreDeltas,
 } from './wph-recorder.mjs'
@@ -46,6 +48,23 @@ test('crystal jumps and simultaneous one or two bonus jumps are separated', () =
     total: 99,
   })
   assert.equal(formatScoreBreakdown([6, 30, 31, 32]), '4x6+72+3')
+  assert.equal(isCrystalSkipDelta(30), true)
+  assert.equal(isCrystalSkipDelta(32), true)
+  assert.equal(isCrystalSkipDelta(8), false)
+})
+
+test('season skips and the active 55-minute window are restored from text', () => {
+  const text = [
+    '04:54:55 | ShaLom/SL_Wish +30 (1,000→1,030)',
+    '[1시간 기준] 2026.07.21 04:55:05 | 55분 시작',
+    '05:00:05 | ShaLom/SL_Wish +31 (1,030→1,061); ShaLom/SL_Rush +6 (900→906)',
+    '05:00:15 | ShaLom/SL_Wish +6 (1,061→1,067)',
+  ].join('\r\n')
+  const history = parseRecorderText(text)
+
+  assert.equal(history.seasonSkips.get('ShaLom\u0000SL_Wish'), 2)
+  assert.deepEqual(history.windowDeltas.get('ShaLom\u0000SL_Wish'), [31, 6])
+  assert.equal(new Date(history.windowStartedAt).toISOString(), '2026-07-20T19:55:05.000Z')
 })
 
 test('next season starts immediately after the five-day API period', () => {

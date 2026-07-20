@@ -29,11 +29,15 @@ function normalizeMember(member) {
   const guildName = String(member?.guildName || '').trim()
   const nickname = String(member?.nickname || '').trim()
   const detail = String(member?.detail || '').trim()
+  const hourlySkips = Number(member?.hourlySkips)
+  const seasonSkips = Number(member?.seasonSkips)
   const wph = Number(member?.wph)
   if (!ALLOWED_GUILDS.has(guildName) || !nickname || nickname.length > 80) return null
   if (!Number.isInteger(wph) || wph < 0 || wph > 10000) return null
+  if (!Number.isInteger(hourlySkips) || hourlySkips < 0 || hourlySkips > 1000) return null
+  if (!Number.isInteger(seasonSkips) || seasonSkips < hourlySkips || seasonSkips > 100000) return null
   if (!detail || detail.length > 120) return null
-  return { detail, guildName, nickname, wph }
+  return { detail, guildName, hourlySkips, nickname, seasonSkips, wph }
 }
 
 export async function handler(event) {
@@ -68,7 +72,9 @@ export async function handler(event) {
         raw_json: {
           detail: member.detail,
           guildName: member.guildName,
+          hourlySkips: member.hourlySkips,
           nickname: member.nickname,
+          seasonSkips: member.seasonSkips,
           source: 'local-wph-10s',
           windowStartAt,
           wph: member.wph,

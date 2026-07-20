@@ -194,6 +194,63 @@ export function formatScoreBreakdown(deltas) {
   return parts.join('+')
 }
 
+export function isCrystalSkipDelta(delta) {
+  const value = Number(delta)
+  return [30, 20, 10].some((jump) => value >= jump && value - jump <= 2)
+}
+
+function parseKstDateTime(value) {
+  const match = String(value).match(/^(\d{4})\.(\d{2})\.(\d{2}) (\d{2}):(\d{2}):(\d{2})$/)
+  if (!match) return null
+  return toTime(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}+09:00`)
+}
+
+function parseChangeLine(line) {
+  const separatorIndex = line.indexOf(' | ')
+  if (separatorIndex < 0 || !/^\d{2}:\d{2}:\d{2}$/.test(line.slice(0, separatorIndex))) return []
+
+  return line
+    .slice(separatorIndex + 3)
+    .split('; ')
+    .map((entry) => entry.match(/^([^/]+)\/(.+?) \+([\d,]+) \(/))
+    .filter(Boolean)
+    .map((match) => ({
+      delta: Number(match[3].replaceAll(',', '')),
+      key: getMemberKey(match[1], match[2]),
+    }))
+    .filter((change) => Number.isFinite(change.delta) && change.delta > 0)
+}
+
+export function parseRecorderText(text) {
+  const seasonSkips = new Map()
+  let windowDeltas = new Map()
+  let windowStartedAt = null
+
+  String(text).split(/\r?\n/).forEach((line) => {
+    const windowMatch = line.match(/^\[1시간 기준\] (\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}) \| 55분 시작$/)
+    if (windowMatch) {
+      windowStartedAt = parseKstDateTime(windowMatch[1])
+      windowDeltas = new Map()
+      return
+    }
+
+    parseChangeLine(line).forEach(({ delta, key }) => {
+      if (isCrystalSkipDelta(delta)) seasonSkips.set(key, (seasonSkips.get(key) || 0) + 1)
+      if (windowStartedAt !== null) {
+        if (!windowDeltas.has(key)) windowDeltas.set(key, [])
+        windowDeltas.get(key).push(delta)
+      }
+    })
+  })
+
+  return { seasonSkips, windowDeltas, windowStartedAt }
+}
+
+async function readRecorderHistory(filePath) {
+  const text = await readFile(filePath, 'utf8').catch(() => '')
+  return parseRecorderText(text)
+}
+
 export function isSeasonScoreReset(previousScores, currentScores) {
   let decreased = 0
   let matched = 0
@@ -315,7 +372,7 @@ function formatChangeLine(now, changes) {
   return `${formatKstTime(now)} | ${details.join('; ')}\r\n`
 }
 
-export function buildReport(windowState, currentScores, endedAt, label = '1시간 WPH') {
+export function buildReport(windowState, currentScores, endedAt, label = '1시간 WPH', seasonSkipTotals = new Map()) {
   const elapsedMinutes = Math.max(0, (endedAt - windowState.startedAt) / 60000)
   const byGuild = new Map(selectedGuilds.map((guildName) => [guildName, []]))
   const reportMembers = []
@@ -327,7 +384,15 @@ export function buildReport(windowState, currentScores, endedAt, label = '1시�
     if (!byGuild.has(guildName)) byGuild.set(guildName, [])
     const scoreDelta = currentScore - startScore
     const deltas = windowState.deltas.get(key) || []
-    const member = { detail: formatScoreBreakdown(deltas), guildName, nickname, scoreDelta, wph: scoreDelta }
+    const member = {
+      detail: formatScoreBreakdown(deltas),
+      guildName,
+      hourlySkips: deltas.filter(isCrystalSkipDelta).length,
+      nickname,
+      scoreDelta,
+      seasonSkips: seasonSkipTotals.get(key) || 0,
+      wph: scoreDelta,
+    }
     byGuild.get(guildName).push(member)
     reportMembers.push(member)
   })
@@ -369,7 +434,9 @@ async function uploadReport(report, activeSeason, slotAt, collectSecret) {
       members: report.members.map((member) => ({
         detail: member.detail,
         guildName: member.guildName,
+        hourlySkips: member.hourlySkips,
         nickname: member.nickname,
+        seasonSkips: member.seasonSkips,
         wph: member.wph,
       })),
       seasonKey: activeSeason.meta.key,
@@ -424,6 +491,8 @@ async function main() {
   let lastScores = new Map()
   let oldSeasonScores = new Map()
   let nextCheckpointAt = null
+  let restoredWindow = null
+  let seasonSkipTotals = new Map()
   let windowState = null
 
   const stop = async () => {
@@ -441,7 +510,7 @@ async function main() {
       const elapsed = Date.now() - windowState.startedAt
       if (elapsed >= 60000) {
         const label = elapsed >= 55 * 60 * 1000 ? '1시간 WPH' : '마지막 구간'
-        const report = buildReport(windowState, lastScores, Date.now(), label)
+        const report = buildReport(windowState, lastScores, Date.now(), label, seasonSkipTotals)
         await appendText(active.filePath, report.text)
         if (label === '1시간 WPH') {
           try {
@@ -456,9 +525,12 @@ async function main() {
     }
 
     const filePath = await ensureSeasonFile(meta, reason)
+    const recorderHistory = await readRecorderHistory(filePath)
     active = { awaitingReset, filePath, meta }
     lastScores = new Map()
     nextCheckpointAt = null
+    restoredWindow = recorderHistory.windowStartedAt === null ? null : recorderHistory
+    seasonSkipTotals = recorderHistory.seasonSkips
     windowState = null
     lastHeartbeatAt = Date.now()
     console.log(`[WPH] ${getSeasonFileName(meta)} 기록 시작`)
@@ -520,10 +592,32 @@ async function main() {
           lastScores = new Map(currentScores)
           nextCheckpointAt = getNextCheckpointTime(tickStartedAt, true)
           const memberCount = [...currentScores.keys()].length
-          await appendText(
-            active.filePath,
-            `[측정 시작] ${formatKstDateTime(tickStartedAt)} | 길드원 ${memberCount}명 | 첫 1시간 시작 ${formatKstTime(getNextHourStartTime(tickStartedAt, true))}\r\n`,
-          )
+          const canRestoreWindow =
+            restoredWindow?.windowStartedAt !== null &&
+            tickStartedAt - restoredWindow.windowStartedAt >= 0 &&
+            tickStartedAt - restoredWindow.windowStartedAt < 70 * 60 * 1000
+          if (canRestoreWindow) {
+            const startScores = new Map(currentScores)
+            restoredWindow.windowDeltas.forEach((deltas, key) => {
+              const current = currentScores.get(key)
+              if (Number.isFinite(current)) startScores.set(key, current - deltas.reduce((sum, delta) => sum + delta, 0))
+            })
+            windowState = {
+              deltas: restoredWindow.windowDeltas,
+              startedAt: restoredWindow.windowStartedAt,
+              startScores,
+            }
+            await appendText(
+              active.filePath,
+              `[측정 재개] ${formatKstDateTime(tickStartedAt)} | ${formatKstTime(restoredWindow.windowStartedAt)} 기준 복원 | 시즌 skip 복원\r\n`,
+            )
+          } else {
+            await appendText(
+              active.filePath,
+              `[측정 시작] ${formatKstDateTime(tickStartedAt)} | 길드원 ${memberCount}명 | 첫 1시간 시작 ${formatKstTime(getNextHourStartTime(tickStartedAt, true))}\r\n`,
+            )
+          }
+          restoredWindow = null
         } else {
           const changes = []
           currentScores.forEach((current, key) => {
@@ -537,6 +631,7 @@ async function main() {
             if (delta > 0) {
               changes.push({ current, delta, key, previous })
               if (windowState) addDelta(windowState, key, delta)
+              if (isCrystalSkipDelta(delta)) seasonSkipTotals.set(key, (seasonSkipTotals.get(key) || 0) + 1)
             } else if (delta < 0) {
               windowState?.startScores.set(key, current)
               windowState?.deltas.delete(key)
@@ -551,7 +646,7 @@ async function main() {
           const checkpointMinute = Number(getKstParts(nextCheckpointAt).minute)
           if (checkpointMinute === 55) {
             if (windowState) {
-              const report = buildReport(windowState, currentScores, tickStartedAt)
+              const report = buildReport(windowState, currentScores, tickStartedAt, '1시간 WPH', seasonSkipTotals)
               await appendText(active.filePath, report.text)
               try {
                 await uploadReport(report, active, nextCheckpointAt, collectSecret)

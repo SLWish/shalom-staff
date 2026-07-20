@@ -339,14 +339,21 @@ function getHourKey(value) {
   return time === null ? null : new Date(time).toISOString().slice(0, 13)
 }
 
+function getSeasonKey(startAt, endAt) {
+  if (!startAt || !endAt) return null
+  return `${String(startAt).slice(0, 10)}_${String(endAt).slice(0, 10)}`
+}
+
 export function mergeLocalWph(report, localRows) {
   if (!report?.members?.length || !localRows.length) return report
   const rowsByNickname = localRows.reduce((grouped, row) => {
     const raw = row.raw_json || {}
     if (raw.guildName !== report.guildName || !raw.nickname) return grouped
+    if (row.season_key !== getSeasonKey(report.seasonStartAt, report.seasonEndAt)) return grouped
     if (!grouped[raw.nickname]) grouped[raw.nickname] = []
     grouped[raw.nickname].push({
       detail: String(raw.detail || row.score || 0),
+      seasonSkips: Number(raw.seasonSkips),
       slotAt: row.captured_at,
       value: Number(raw.wph ?? row.score),
     })
@@ -372,6 +379,9 @@ export function mergeLocalWph(report, localRows) {
         .sort((a, b) => toTime(a.slotAt) - toTime(b.slotAt))
         .slice(-INTERVAL_COUNT)
       const validValues = merged.map((entry) => entry.value).filter(Number.isFinite)
+      const latestSeasonSkips = [...(rowsByNickname[member.nickname] || [])]
+        .filter((entry) => Number.isFinite(entry.seasonSkips))
+        .sort((a, b) => toTime(b.slotAt) - toTime(a.slotAt))[0]?.seasonSkips
       return {
         ...member,
         averageWph:
@@ -381,6 +391,7 @@ export function mergeLocalWph(report, localRows) {
         detailHourly: merged.map((entry) => entry.detail),
         hourly: merged.map((entry) => entry.value),
         hourlySlots: merged.map((entry) => entry.slotAt),
+        skips: Number.isFinite(latestSeasonSkips) ? latestSeasonSkips : member.skips,
       }
     }),
   }
@@ -432,7 +443,7 @@ export async function handler() {
         `guild_snapshots?select=guild_name,captured_at,raw_json&guild_name=in.(${REPORT_GUILDS.join(',')})&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.desc&limit=100`,
       ),
       selectRows(
-        `member_snapshots?select=captured_at,score,raw_json&guild_name=eq.${encodeURIComponent(LOCAL_WPH_GUILD_NAME)}&captured_at=gte.${encodeURIComponent(since)}&order=captured_at.asc&limit=500`,
+        `member_snapshots?select=captured_at,score,season_key,raw_json&guild_name=eq.${encodeURIComponent(LOCAL_WPH_GUILD_NAME)}&order=captured_at.desc&limit=500`,
       ),
       fetchGuildRanks(),
     ])
