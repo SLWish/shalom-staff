@@ -524,12 +524,9 @@ function formatSummaryArray(values) {
   return values.map((value) => (typeof value === 'number' ? formatNumber(value) : '-')).join(' / ')
 }
 
-function formatWphMinute(value) {
+function formatWphDownHours(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
-  if (value < 60) return `${value}m`
-  const hours = Math.floor(value / 60)
-  const minutes = value % 60
-  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  return `${Math.floor(value / 15) / 4}h`
 }
 
 function formatProjectedScore(value) {
@@ -1672,7 +1669,7 @@ function WphReportPage() {
                       {index + 1}. {member.nickname}
                     </strong>
                     <span>
-                      {member.skips} skips, {formatWphMinute(member.downMinutes)} down
+                      {member.skips} skips, {formatWphDownHours(member.downMinutes)} down
                     </span>
                   </div>
                   <div className="wph-values-row">
