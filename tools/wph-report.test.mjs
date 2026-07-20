@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { mergeLocalWph } from './wph-report.js'
+import { mergeLocalWph } from '../netlify/functions/wph-report.js'
 
 test('local 10-second report replaces the matching server hour and detail', () => {
   const slotAt = '2026-07-20T20:55:00.000Z'
