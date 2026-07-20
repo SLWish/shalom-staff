@@ -168,8 +168,17 @@ export function summarizeScoreDeltas(deltas) {
 
     baseCount += 1
     const extra = delta - baseJump
-    if (delta >= 10) crystalExtra += extra
-    else autoExtra += extra
+    if (delta >= 10) {
+      const crystalJump = [30, 20, 10].find((jump) => delta >= jump && delta - jump <= 2)
+      if (crystalJump) {
+        crystalExtra += crystalJump - baseJump
+        autoExtra += delta - crystalJump
+      } else {
+        crystalExtra += extra
+      }
+    } else {
+      autoExtra += extra
+    }
   })
 
   return { autoExtra, baseCount, baseJump, crystalExtra, total }

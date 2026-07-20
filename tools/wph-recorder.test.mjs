@@ -35,6 +35,19 @@ test('low horn jumps are supported', () => {
   assert.equal(formatScoreBreakdown([2, 2, 3, 2]), '4x2+1')
 })
 
+test('crystal jumps and simultaneous one or two bonus jumps are separated', () => {
+  const summary = summarizeScoreDeltas([6, 30, 31, 32])
+
+  assert.deepEqual(summary, {
+    autoExtra: 3,
+    baseCount: 4,
+    baseJump: 6,
+    crystalExtra: 72,
+    total: 99,
+  })
+  assert.equal(formatScoreBreakdown([6, 30, 31, 32]), '4x6+72+3')
+})
+
 test('next season starts immediately after the five-day API period', () => {
   const current = {
     endAt: '2026-07-24T14:54:59.000Z',
