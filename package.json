@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "wph:record": "node tools/wph-recorder.mjs",
+    "wph:test": "node --test tools/wph-recorder.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.7",

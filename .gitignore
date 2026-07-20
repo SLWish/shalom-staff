@@ -15,6 +15,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+WPH-records/
 
 # Editor directories and files
 .vscode/*
