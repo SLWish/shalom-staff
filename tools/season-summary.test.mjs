@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getSeasonList, selectRowsPaged } from '../netlify/functions/season-summary.js'
+import { buildMemberSummary, getSeasonList, selectRowsPaged } from '../netlify/functions/season-summary.js'
 
 test('season list excludes temporary unknown season keys', () => {
   const seasons = getSeasonList([
@@ -32,4 +32,26 @@ test('season member rows are loaded past the Supabase 1000-row response cap', as
 
   assert.equal(rows.length, sourceRows.length)
   assert.equal(rows.at(-1).id, 23113)
+})
+
+test('partial activity does not lower the passive WPH baseline', () => {
+  const deltas = [0, 150, 1140, 1146, 1152, 1140, 1200]
+  let wave = 10000
+  const rows = [{ slotAt: '2026-07-14T15:55:00.000Z', slotTime: 0, wave }]
+  deltas.forEach((delta, index) => {
+    wave += delta
+    rows.push({
+      slotAt: new Date(Date.parse('2026-07-14T15:55:00.000Z') + (index + 1) * 36e5).toISOString(),
+      slotTime: (index + 1) * 36e5,
+      wave,
+    })
+  })
+
+  const summary = buildMemberSummary('SL_Wish', rows, ['2026-07-15'])
+
+  assert.equal(summary.averageWph, 1145)
+  assert.equal(summary.passiveHours, 4)
+  assert.equal(summary.skipHours, 1)
+  assert.equal(summary.downHours, 1)
+  assert.equal(summary.belowPassiveHours, 1)
 })

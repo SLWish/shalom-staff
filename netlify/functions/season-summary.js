@@ -137,12 +137,21 @@ function getAverage(values) {
   return valid.length > 0 ? valid.reduce((sum, value) => sum + value, 0) / valid.length : 0
 }
 
+function getMedian(values) {
+  const valid = values
+    .filter((value) => typeof value === 'number' && Number.isFinite(value))
+    .sort((a, b) => a - b)
+  if (valid.length === 0) return 0
+  const middle = Math.floor(valid.length / 2)
+  return valid.length % 2 === 0 ? (valid[middle - 1] + valid[middle]) / 2 : valid[middle]
+}
+
 function round(value, digits = 1) {
   const scale = 10 ** digits
   return Math.round(value * scale) / scale
 }
 
-function buildMemberSummary(nickname, rows, dayKeys) {
+export function buildMemberSummary(nickname, rows, dayKeys) {
   const ordered = [...rows].sort((a, b) => a.slotTime - b.slotTime)
   const intervals = []
 
@@ -167,7 +176,16 @@ function buildMemberSummary(nickname, rows, dayKeys) {
   }
 
   const activeIntervals = intervals.filter((interval) => interval.waveDelta > 0)
-  const averageWph = getAverage(activeIntervals.map((interval) => interval.wph))
+  const passiveBaseline = getMedian(activeIntervals.map((interval) => interval.wph))
+  const passiveIntervals = activeIntervals.filter(
+    (interval) => interval.wph > passiveBaseline - 30 && interval.wph < passiveBaseline + 30,
+  )
+  const skipIntervals = activeIntervals.filter(
+    (interval) => interval.wph >= passiveBaseline + 30 && interval.wph < passiveBaseline + 300,
+  )
+  const orangeIntervals = activeIntervals.filter((interval) => interval.wph >= passiveBaseline + 300)
+  const belowPassiveIntervals = activeIntervals.filter((interval) => interval.wph <= passiveBaseline - 30)
+  const averageWph = getAverage(passiveIntervals.map((interval) => interval.wph)) || passiveBaseline
   const dayWph = createDayBuckets(dayKeys, null)
   const passiveHours = createDayBuckets(dayKeys, 0)
   const skipHours = createDayBuckets(dayKeys, 0)
@@ -176,7 +194,7 @@ function buildMemberSummary(nickname, rows, dayKeys) {
   const belowPassiveHours = createDayBuckets(dayKeys, 0)
 
   dayKeys.forEach((dayKey) => {
-    const dayIntervals = activeIntervals.filter((interval) => interval.dayKey === dayKey)
+    const dayIntervals = passiveIntervals.filter((interval) => interval.dayKey === dayKey)
     dayWph[dayKey] = dayIntervals.length > 0 ? Math.round(getAverage(dayIntervals.map((interval) => interval.wph))) : 0
   })
 
@@ -187,16 +205,15 @@ function buildMemberSummary(nickname, rows, dayKeys) {
       return
     }
 
-    if (averageWph > 0 && interval.wph >= averageWph + 300) orangeHours[interval.dayKey] += interval.hours
-    else if (averageWph > 0 && interval.wph >= averageWph + 30) skipHours[interval.dayKey] += interval.hours
-    else if (averageWph > 0 && interval.wph <= averageWph - 30) belowPassiveHours[interval.dayKey] += interval.hours
+    if (orangeIntervals.includes(interval)) orangeHours[interval.dayKey] += interval.hours
+    else if (skipIntervals.includes(interval)) skipHours[interval.dayKey] += interval.hours
+    else if (belowPassiveIntervals.includes(interval)) belowPassiveHours[interval.dayKey] += interval.hours
     else passiveHours[interval.dayKey] += interval.hours
   })
 
   const firstRow = ordered[0]
   const lastRow = ordered.at(-1)
   const totalWaves = intervals.reduce((sum, interval) => sum + interval.waveDelta, 0)
-  const skipIntervals = intervals.filter((interval) => averageWph > 0 && interval.wph >= averageWph + 30)
 
   return {
     averageWph: Math.round(averageWph),
