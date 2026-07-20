@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url'
 
 const KST_TIME_ZONE = 'Asia/Seoul'
 const DEFAULT_GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
+const CHECKPOINT_MINUTES = [10, 25, 40, 55]
 const API_BASE_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds'
 const POLL_INTERVAL_MS = getPositiveNumber(process.env.WPH_POLL_SECONDS, 10) * 1000
-const REPORT_INTERVAL_MS = getPositiveNumber(process.env.WPH_REPORT_MINUTES, 60) * 60 * 1000
 const HEARTBEAT_INTERVAL_MS = 10 * 60 * 1000
 const SEASON_END_BUFFER_MS = 5 * 60 * 1000
 const ONE_SECOND_MS = 1000
@@ -67,6 +67,29 @@ export function formatKstTime(value) {
 
 export function formatKstDateTime(value) {
   return `${formatKstDate(value)} ${formatKstTime(value)}`
+}
+
+export function getNextCheckpointTime(referenceTime, includeRecent = false) {
+  const shifted = new Date(referenceTime + 9 * 60 * 60 * 1000)
+  const minute = shifted.getUTCMinutes()
+  const elapsedInMinute = shifted.getUTCSeconds() * 1000 + shifted.getUTCMilliseconds()
+
+  if (includeRecent && CHECKPOINT_MINUTES.includes(minute) && elapsedInMinute <= Math.max(30000, POLL_INTERVAL_MS * 2)) {
+    return referenceTime - elapsedInMinute
+  }
+
+  const hourStart = referenceTime - minute * 60000 - elapsedInMinute
+  const nextMinute = CHECKPOINT_MINUTES.find((checkpointMinute) => checkpointMinute > minute)
+  if (nextMinute !== undefined) return hourStart + nextMinute * 60000
+  return hourStart + 60 * 60000 + CHECKPOINT_MINUTES[0] * 60000
+}
+
+export function getNextHourStartTime(referenceTime, includeRecent = false) {
+  let checkpointTime = getNextCheckpointTime(referenceTime, includeRecent)
+  while (Number(getKstParts(checkpointTime).minute) !== 55) {
+    checkpointTime = getNextCheckpointTime(checkpointTime + ONE_SECOND_MS)
+  }
+  return checkpointTime
 }
 
 function getSeasonKey(startAt, endAt) {
@@ -348,6 +371,7 @@ async function main() {
   let lastHeartbeatAt = 0
   let lastScores = new Map()
   let oldSeasonScores = new Map()
+  let nextCheckpointAt = null
   let windowState = null
 
   const stop = async () => {
@@ -363,13 +387,17 @@ async function main() {
   async function activateSeason(meta, reason, awaitingReset = false) {
     if (active?.filePath && windowState && lastScores.size > 0) {
       const elapsed = Date.now() - windowState.startedAt
-      if (elapsed >= 60000) await appendText(active.filePath, buildReportLines(windowState, lastScores, Date.now(), '마지막 구간'))
+      if (elapsed >= 60000) {
+        const label = elapsed >= 55 * 60 * 1000 ? '1시간 WPH' : '마지막 구간'
+        await appendText(active.filePath, buildReportLines(windowState, lastScores, Date.now(), label))
+      }
       await appendText(active.filePath, `[시즌 기록 종료] ${formatKstDateTime(Date.now())}\r\n`)
     }
 
     const filePath = await ensureSeasonFile(meta, reason)
     active = { awaitingReset, filePath, meta }
     lastScores = new Map()
+    nextCheckpointAt = null
     windowState = null
     lastHeartbeatAt = Date.now()
     console.log(`[WPH] ${getSeasonFileName(meta)} 기록 시작`)
@@ -421,6 +449,7 @@ async function main() {
           active.awaitingReset = false
           lastScores = new Map([...currentScores.keys()].map((key) => [key, 0]))
           windowState = createWindow(tickStartedAt, lastScores)
+          nextCheckpointAt = getNextCheckpointTime(tickStartedAt)
           await appendText(active.filePath, `[새 시즌 시작 확인] ${formatKstDateTime(tickStartedAt)} | 0점부터 이어서 기록\r\n`)
         }
       }
@@ -428,25 +457,28 @@ async function main() {
       if (!active.awaitingReset) {
         if (lastScores.size === 0) {
           lastScores = new Map(currentScores)
-          windowState = createWindow(tickStartedAt, currentScores)
+          nextCheckpointAt = getNextCheckpointTime(tickStartedAt, true)
           const memberCount = [...currentScores.keys()].length
-          await appendText(active.filePath, `[측정 시작] ${formatKstDateTime(tickStartedAt)} | 길드원 ${memberCount}명\r\n`)
+          await appendText(
+            active.filePath,
+            `[측정 시작] ${formatKstDateTime(tickStartedAt)} | 길드원 ${memberCount}명 | 첫 1시간 시작 ${formatKstTime(getNextHourStartTime(tickStartedAt, true))}\r\n`,
+          )
         } else {
           const changes = []
           currentScores.forEach((current, key) => {
             const previous = lastScores.get(key)
             if (!Number.isFinite(previous)) {
               lastScores.set(key, current)
-              windowState.startScores.set(key, current)
+              windowState?.startScores.set(key, current)
               return
             }
             const delta = current - previous
             if (delta > 0) {
               changes.push({ current, delta, key, previous })
-              addDelta(windowState, key, delta)
+              if (windowState) addDelta(windowState, key, delta)
             } else if (delta < 0) {
-              windowState.startScores.set(key, current)
-              windowState.deltas.delete(key)
+              windowState?.startScores.set(key, current)
+              windowState?.deltas.delete(key)
             }
             lastScores.set(key, current)
           })
@@ -454,10 +486,19 @@ async function main() {
           if (changes.length > 0) await appendText(active.filePath, formatChangeLine(tickStartedAt, changes))
         }
 
-        if (windowState && tickStartedAt - windowState.startedAt >= REPORT_INTERVAL_MS) {
-          await appendText(active.filePath, buildReportLines(windowState, currentScores, tickStartedAt))
-          windowState = createWindow(tickStartedAt, currentScores)
-          console.log(`[WPH] ${formatKstDateTime(tickStartedAt)} 1시간 결과 저장`)
+        if (nextCheckpointAt !== null && tickStartedAt >= nextCheckpointAt) {
+          const checkpointMinute = Number(getKstParts(nextCheckpointAt).minute)
+          if (checkpointMinute === 55) {
+            if (windowState) {
+              await appendText(active.filePath, buildReportLines(windowState, currentScores, tickStartedAt))
+              console.log(`[WPH] ${formatKstDateTime(tickStartedAt)} 1시간 결과 저장`)
+            }
+            windowState = createWindow(tickStartedAt, currentScores)
+            await appendText(active.filePath, `[1시간 기준] ${formatKstDateTime(tickStartedAt)} | 55분 시작\r\n`)
+          } else if (windowState) {
+            await appendText(active.filePath, `[15분 체크] ${formatKstDateTime(tickStartedAt)} | ${checkpointMinute}분\r\n`)
+          }
+          nextCheckpointAt = getNextCheckpointTime(nextCheckpointAt + ONE_SECOND_MS)
         }
       }
 

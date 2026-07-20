@@ -3,6 +3,8 @@ import test from 'node:test'
 
 import {
   formatScoreBreakdown,
+  getNextCheckpointTime,
+  getNextHourStartTime,
   getSeasonFileName,
   isSeasonScoreReset,
   predictNextSeason,
@@ -60,4 +62,13 @@ test('season reset is detected when a meaningful share of scores drops', () => {
   ])
 
   assert.equal(isSeasonScoreReset(previous, current), true)
+})
+
+test('hourly WPH checkpoints follow 55, 10, 25, 40, 55', () => {
+  const atFivePast = Date.parse('2026-07-20T19:05:00.000Z')
+  const justAfterFiftyFive = Date.parse('2026-07-20T19:55:07.000Z')
+
+  assert.equal(new Date(getNextCheckpointTime(atFivePast)).toISOString(), '2026-07-20T19:10:00.000Z')
+  assert.equal(new Date(getNextCheckpointTime(justAfterFiftyFive, true)).toISOString(), '2026-07-20T19:55:00.000Z')
+  assert.equal(new Date(getNextHourStartTime(atFivePast)).toISOString(), '2026-07-20T19:55:00.000Z')
 })
