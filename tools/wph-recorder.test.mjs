@@ -55,6 +55,35 @@ test('crystal jumps and simultaneous one or two bonus jumps are separated', () =
   assert.equal(isCrystalSkipDelta(8), false)
 })
 
+test('batched API updates are decomposed into normal clears', () => {
+  const deltas = [
+    ...Array(20).fill(6),
+    { batched: true, delta: 12 },
+    { batched: true, delta: 19 },
+  ]
+
+  assert.deepEqual(summarizeScoreDeltas(deltas), {
+    autoExtra: 1,
+    baseCount: 25,
+    baseJump: 6,
+    crystalExtra: 0,
+    total: 151,
+  })
+  assert.equal(formatScoreBreakdown(deltas), '25x6+1')
+})
+
+test('simultaneous multi-member catch-up does not increase season skips', () => {
+  const text = [
+    '04:54:45 | ShaLom/SL_Wish +6 (900→906); ShaLom/SL_Rush +6 (900→906); ShaLom/SL_Lynx +5 (900→905); ShaLom/SL_angel +6 (900→906)',
+    '[1시간 기준] 2026.07.21 04:55:05 | 55분 시작',
+    '05:00:05 | ShaLom/SL_Wish +12 (906→918); ShaLom/SL_Rush +12 (906→918); ShaLom/SL_Lynx +10 (905→915); ShaLom/SL_angel +13 (906→919)',
+  ].join('\r\n')
+  const history = parseRecorderText(text)
+
+  assert.equal(history.seasonSkips.get('ShaLom\u0000SL_Wish'), 0)
+  assert.equal(formatScoreBreakdown(history.windowDeltas.get('ShaLom\u0000SL_Wish')), '2x6')
+})
+
 test('season skips and the active 55-minute window are restored from text', () => {
   const text = [
     '04:54:55 | ShaLom/SL_Wish +30 (1,000→1,030)',
