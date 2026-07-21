@@ -228,16 +228,36 @@ function annotateBatchedChanges(changes, baseSamples) {
   return annotated
 }
 
-function isCrystalSkipObservation(value, baseJump) {
-  const delta = getDeltaValue(value)
-  if (delta === null || !isCrystalSkipDelta(delta)) return false
-  if (typeof value !== 'object' || value === null || !value.batched) return true
-  return !getNormalClearBreakdown(delta, baseJump)
+function hasNearbyBandEvidence(values, index, baseJump) {
+  const radius = 60
+  const start = Math.max(0, index - radius)
+  const end = Math.min(values.length, index + radius + 1)
+  for (let nearbyIndex = start; nearbyIndex < end; nearbyIndex += 1) {
+    if (nearbyIndex === index) continue
+    const delta = getDeltaValue(values[nearbyIndex])
+    if (delta === baseJump + 1 || delta === baseJump + 2) return true
+  }
+  return false
 }
 
-function countCrystalSkips(values) {
+function isCrystalSkipObservation(value, baseJump, values = [value], index = 0) {
+  const delta = getDeltaValue(value)
+  if (delta === null || !isCrystalSkipDelta(delta)) return false
+  const normal = getNormalClearBreakdown(delta, baseJump)
+  if (typeof value === 'object' && value !== null && value.batched) return !normal
+
+  const lowCrystalJump = delta < 30
+  if (
+    lowCrystalJump &&
+    normal?.count >= 2 &&
+    (normal.extra === 0 || hasNearbyBandEvidence(values, index, baseJump))
+  ) return false
+  return true
+}
+
+export function countCrystalSkips(values) {
   const baseJump = inferBaseJump(values)
-  return values.filter((value) => isCrystalSkipObservation(value, baseJump)).length
+  return values.filter((value, index) => isCrystalSkipObservation(value, baseJump, values, index)).length
 }
 
 export function summarizeScoreDeltas(deltas) {
@@ -250,19 +270,20 @@ export function summarizeScoreDeltas(deltas) {
   const baseJump = inferBaseJump(positive.map((value) => value.raw))
   if (baseJump === null) return { autoExtra: total, baseCount: 0, baseJump: null, crystalExtra: 0, total }
   const expectedExtraRate = getExpectedExtraRate(positiveDeltas, baseJump)
+  const positiveRaw = positive.map((value) => value.raw)
 
   let autoExtra = 0
   let baseCount = 0
   let crystalExtra = 0
 
-  positive.forEach(({ delta, raw }) => {
+  positive.forEach(({ delta, raw }, index) => {
     if (delta < baseJump) {
       autoExtra += delta
       return
     }
 
     const crystalJump = [30, 20, 10].find((jump) => delta >= jump && delta - jump <= 2)
-    if (crystalJump && isCrystalSkipObservation(raw, baseJump)) {
+    if (crystalJump && isCrystalSkipObservation(raw, baseJump, positiveRaw, index)) {
       baseCount += 1
       crystalExtra += crystalJump - baseJump
       autoExtra += delta - crystalJump
@@ -477,7 +498,11 @@ export function parseRecorderText(text) {
     seasonSkips.set(key, countCrystalSkips(observations))
   })
 
-  return { baseSamples, downTrackers, seasonSkips, windowDeltas, windowStartedAt }
+  return { baseSamples, downTrackers, seasonObservations, seasonSkips, windowDeltas, windowStartedAt }
+}
+
+function calculateSeasonSkipTotals(seasonObservations) {
+  return new Map([...seasonObservations].map(([key, observations]) => [key, countCrystalSkips(observations)]))
 }
 
 async function readRecorderHistory(filePath) {
@@ -791,6 +816,7 @@ async function main() {
   let restoredWindow = null
   let baseSamples = new Map()
   let seasonDownTrackers = new Map()
+  let seasonObservations = new Map()
   let seasonSkipTotals = new Map()
   let lastRosterKeys = new Set()
   const pendingRosterEvents = new Map()
@@ -815,6 +841,7 @@ async function main() {
       const elapsed = Date.now() - windowState.startedAt
       if (elapsed >= 60000) {
         const label = elapsed >= 55 * 60 * 1000 ? '1시간 WPH' : '마지막 구간'
+        seasonSkipTotals = calculateSeasonSkipTotals(seasonObservations)
         const report = buildReport(windowState, lastScores, Date.now(), label, seasonSkipTotals, seasonDownTrackers)
         await appendText(active.filePath, report.text)
         if (label === '1시간 WPH') {
@@ -837,6 +864,7 @@ async function main() {
     restoredWindow = recorderHistory.windowStartedAt === null ? null : recorderHistory
     baseSamples = recorderHistory.baseSamples
     seasonDownTrackers = await readDownState(meta.key, Date.now()).catch(() => null) || recorderHistory.downTrackers
+    seasonObservations = recorderHistory.seasonObservations
     seasonSkipTotals = recorderHistory.seasonSkips
     windowState = null
     lastHeartbeatAt = Date.now()
@@ -902,6 +930,7 @@ async function main() {
           active.awaitingReset = false
           lastScores = new Map([...currentScores.keys()].map((key) => [key, 0]))
           seasonDownTrackers = new Map()
+          seasonObservations = new Map()
           baseSamples = new Map()
           normalizeDownTrackers(seasonDownTrackers, currentScores, fetchedGuildNames, tickStartedAt)
           windowState = createWindow(tickStartedAt, lastScores)
@@ -994,8 +1023,11 @@ async function main() {
           const annotatedChanges = annotateBatchedChanges(changes, baseSamples)
           annotatedChanges.forEach(({ key, observation }) => {
             if (windowState) addDelta(windowState, key, observation)
+            if (!seasonObservations.has(key)) seasonObservations.set(key, [])
+            seasonObservations.get(key).push(observation)
             const baseJump = getBaseFromSamples(baseSamples, key)
-            if (isCrystalSkipObservation(observation, baseJump)) {
+            const recentSamples = (baseSamples.get(key) || []).slice(-60)
+            if (isCrystalSkipObservation(observation, baseJump, [...recentSamples, observation], recentSamples.length)) {
               seasonSkipTotals.set(key, (seasonSkipTotals.get(key) || 0) + 1)
             }
           })
@@ -1007,6 +1039,7 @@ async function main() {
           const checkpointMinute = Number(getKstParts(nextCheckpointAt).minute)
           if (checkpointMinute === 55) {
             if (windowState) {
+              seasonSkipTotals = calculateSeasonSkipTotals(seasonObservations)
               const report = buildReport(
                 windowState,
                 currentScores,

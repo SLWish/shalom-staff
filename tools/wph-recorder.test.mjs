@@ -19,17 +19,17 @@ import {
 } from './wph-recorder.mjs'
 
 test('score deltas are expressed as base jumps and two extra groups', () => {
-  const deltas = [6, 7, 6, 30, 6, 20]
+  const deltas = [6, 7, 6, 30, 6, 10]
   const summary = summarizeScoreDeltas(deltas)
 
   assert.deepEqual(summary, {
     autoExtra: 1,
     baseCount: 6,
     baseJump: 6,
-    crystalExtra: 38,
-    total: 75,
+    crystalExtra: 28,
+    total: 65,
   })
-  assert.equal(formatScoreBreakdown(deltas), '6x6+38+1')
+  assert.equal(formatScoreBreakdown(deltas), '6x6+28+1')
 })
 
 test('a noisy low delta does not replace the frequent base jump', () => {
@@ -72,6 +72,17 @@ test('batched API updates are decomposed into normal clears', () => {
     total: 151,
   })
   assert.equal(formatScoreBreakdown(deltas), '25x6+1')
+})
+
+test('exact low-jump multiples use each member base score before crystal skips', () => {
+  assert.equal(formatScoreBreakdown([...Array(20).fill(6), 12]), '22x6')
+  assert.equal(formatScoreBreakdown([...Array(20).fill(5), 10]), '22x5')
+  assert.equal(formatScoreBreakdown([...Array(20).fill(4), 8]), '22x4')
+})
+
+test('non-exact low jumps require nearby band evidence before treating them as batches', () => {
+  assert.equal(formatScoreBreakdown([...Array(20).fill(6), 20]), '21x6+14')
+  assert.equal(formatScoreBreakdown([...Array(20).fill(6), 7, 20]), '24x6+3')
 })
 
 test('simultaneous multi-member catch-up does not increase season skips', () => {
