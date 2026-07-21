@@ -185,6 +185,49 @@ function getNormalClearBreakdown(delta, baseJump, expectedExtraRate = 0) {
   return candidates.sort((a, b) => a.score - b.score || a.extra - b.extra || b.count - a.count)[0] || null
 }
 
+const MIN_CLEAR_INTERVAL_MS = 15 * 1000
+
+function getTimedBatchedBreakdown(value, baseJump, expectedExtraRate = 0) {
+  if (typeof value !== 'object' || value === null || !value.batched) return null
+  const delta = getDeltaValue(value)
+  const elapsedMs = Number(value.elapsedMs)
+  if (delta === null || delta < 30 || !Number.isFinite(elapsedMs) || elapsedMs <= 0) return null
+
+  const maximumClears = Math.max(1, Math.ceil(elapsedMs / MIN_CLEAR_INTERVAL_MS))
+  const candidates = []
+
+  for (let jumps30 = 0; jumps30 <= Math.floor(delta / 30); jumps30 += 1) {
+    for (let jumps20 = 0; jumps20 <= Math.floor((delta - jumps30 * 30) / 20); jumps20 += 1) {
+      for (let jumps10 = 0; jumps10 <= Math.floor((delta - jumps30 * 30 - jumps20 * 20) / 10); jumps10 += 1) {
+        const crystalCount = jumps30 + jumps20 + jumps10
+        for (let normalCount = 0; normalCount <= maximumClears - crystalCount; normalCount += 1) {
+          const clearCount = crystalCount + normalCount
+          if (clearCount === 0) continue
+          const crystalScore = jumps30 * 30 + jumps20 * 20 + jumps10 * 10
+          const extra = delta - crystalScore - normalCount * baseJump
+          if (extra < 0 || extra > clearCount * 2) continue
+
+          candidates.push({
+            clearCount,
+            crystalCount,
+            crystalExtra: crystalScore - crystalCount * baseJump,
+            extra,
+            rareCrystalCount: jumps20 + jumps10,
+            score: Math.abs(extra / clearCount - expectedExtraRate),
+          })
+        }
+      }
+    }
+  }
+
+  return candidates.sort((a, b) =>
+    a.rareCrystalCount - b.rareCrystalCount ||
+    a.score - b.score ||
+    a.crystalCount - b.crystalCount ||
+    b.clearCount - a.clearCount
+  )[0] || null
+}
+
 function getExpectedExtraRate(values, baseJump) {
   const singles = values
     .map(getDeltaValue)
@@ -205,7 +248,7 @@ function addBaseSample(baseSamples, key, delta) {
   baseSamples.set(key, samples)
 }
 
-function annotateBatchedChanges(changes, baseSamples) {
+function annotateBatchedChanges(changes, baseSamples, observedAt = null, lastObservedAt = new Map()) {
   const candidates = changes.map((change) => {
     const baseJump = getBaseFromSamples(baseSamples, change.key)
     const breakdown = getNormalClearBreakdown(change.delta, baseJump)
@@ -218,12 +261,20 @@ function annotateBatchedChanges(changes, baseSamples) {
     multiClear.length / Math.max(1, changes.length) >= 0.1 &&
     hasNonCrystalMultiple
 
-  const annotated = candidates.map((change) => ({
-    ...change,
-    observation: batchedTick && change.normalCount >= 2
-      ? { baseJump: change.baseJump, batched: true, delta: change.delta }
-      : change.delta,
-  }))
+  const annotated = candidates.map((change) => {
+    const previousObservedAt = lastObservedAt.get(change.key)
+    const elapsedMs = Number.isFinite(observedAt) && Number.isFinite(previousObservedAt)
+      ? Math.max(0, observedAt - previousObservedAt)
+      : null
+    if (Number.isFinite(observedAt)) lastObservedAt.set(change.key, observedAt)
+
+    return {
+      ...change,
+      observation: batchedTick && change.normalCount >= 2
+        ? { baseJump: change.baseJump, batched: true, delta: change.delta, elapsedMs }
+        : change.delta,
+    }
+  })
   changes.forEach((change) => addBaseSample(baseSamples, change.key, change.delta))
   return annotated
 }
@@ -257,7 +308,17 @@ function isCrystalSkipObservation(value, baseJump, values = [value], index = 0) 
 
 export function countCrystalSkips(values) {
   const baseJump = inferBaseJump(values)
-  return values.filter((value, index) => isCrystalSkipObservation(value, baseJump, values, index)).length
+  const expectedExtraRate = getExpectedExtraRate(values, baseJump)
+  return values.reduce(
+    (count, value, index) => count + getCrystalSkipCount(value, baseJump, expectedExtraRate, values, index),
+    0,
+  )
+}
+
+function getCrystalSkipCount(value, baseJump, expectedExtraRate, values = [value], index = 0) {
+  const timed = getTimedBatchedBreakdown(value, baseJump, expectedExtraRate)
+  if (timed) return timed.crystalCount
+  return isCrystalSkipObservation(value, baseJump, values, index) ? 1 : 0
 }
 
 export function summarizeScoreDeltas(deltas) {
@@ -279,6 +340,14 @@ export function summarizeScoreDeltas(deltas) {
   positive.forEach(({ delta, raw }, index) => {
     if (delta < baseJump) {
       autoExtra += delta
+      return
+    }
+
+    const timed = getTimedBatchedBreakdown(raw, baseJump, expectedExtraRate)
+    if (timed) {
+      baseCount += timed.clearCount
+      crystalExtra += timed.crystalExtra
+      autoExtra += timed.extra
       return
     }
 
@@ -433,6 +502,7 @@ export function parseRecorderText(text) {
   const seasonObservations = new Map()
   const trackerSessionIds = new Map()
   const seasonSkips = new Map()
+  const lastObservedAt = new Map()
   let currentDate = null
   let lastChangeAt = null
   let sessionId = 0
@@ -475,7 +545,7 @@ export function parseRecorderText(text) {
     }
     if (changeAt !== null) lastChangeAt = changeAt
 
-    const annotatedChanges = annotateBatchedChanges(changes, baseSamples)
+    const annotatedChanges = annotateBatchedChanges(changes, baseSamples, changeAt, lastObservedAt)
     annotatedChanges.forEach(({ key, observation }) => {
       if (!seasonObservations.has(key)) seasonObservations.set(key, [])
       seasonObservations.get(key).push(observation)
@@ -498,7 +568,7 @@ export function parseRecorderText(text) {
     seasonSkips.set(key, countCrystalSkips(observations))
   })
 
-  return { baseSamples, downTrackers, seasonObservations, seasonSkips, windowDeltas, windowStartedAt }
+  return { baseSamples, downTrackers, lastObservedAt, seasonObservations, seasonSkips, windowDeltas, windowStartedAt }
 }
 
 function calculateSeasonSkipTotals(seasonObservations) {
@@ -815,6 +885,7 @@ async function main() {
   let nextCheckpointAt = null
   let restoredWindow = null
   let baseSamples = new Map()
+  let lastObservedAt = new Map()
   let seasonDownTrackers = new Map()
   let seasonObservations = new Map()
   let seasonSkipTotals = new Map()
@@ -863,6 +934,7 @@ async function main() {
     nextCheckpointAt = null
     restoredWindow = recorderHistory.windowStartedAt === null ? null : recorderHistory
     baseSamples = recorderHistory.baseSamples
+    lastObservedAt = recorderHistory.lastObservedAt
     seasonDownTrackers = await readDownState(meta.key, Date.now()).catch(() => null) || recorderHistory.downTrackers
     seasonObservations = recorderHistory.seasonObservations
     seasonSkipTotals = recorderHistory.seasonSkips
@@ -932,6 +1004,7 @@ async function main() {
           seasonDownTrackers = new Map()
           seasonObservations = new Map()
           baseSamples = new Map()
+          lastObservedAt = new Map()
           normalizeDownTrackers(seasonDownTrackers, currentScores, fetchedGuildNames, tickStartedAt)
           windowState = createWindow(tickStartedAt, lastScores)
           nextCheckpointAt = getNextCheckpointTime(tickStartedAt)
@@ -1020,15 +1093,18 @@ async function main() {
 
           normalizeDownTrackers(seasonDownTrackers, currentScores, fetchedGuildNames, tickStartedAt)
 
-          const annotatedChanges = annotateBatchedChanges(changes, baseSamples)
+          const annotatedChanges = annotateBatchedChanges(changes, baseSamples, tickStartedAt, lastObservedAt)
           annotatedChanges.forEach(({ key, observation }) => {
             if (windowState) addDelta(windowState, key, observation)
             if (!seasonObservations.has(key)) seasonObservations.set(key, [])
             seasonObservations.get(key).push(observation)
             const baseJump = getBaseFromSamples(baseSamples, key)
             const recentSamples = (baseSamples.get(key) || []).slice(-60)
-            if (isCrystalSkipObservation(observation, baseJump, [...recentSamples, observation], recentSamples.length)) {
-              seasonSkipTotals.set(key, (seasonSkipTotals.get(key) || 0) + 1)
+            const values = [...recentSamples, observation]
+            const expectedExtraRate = getExpectedExtraRate(values, baseJump)
+            const skipCount = getCrystalSkipCount(observation, baseJump, expectedExtraRate, values, values.length - 1)
+            if (skipCount > 0) {
+              seasonSkipTotals.set(key, (seasonSkipTotals.get(key) || 0) + skipCount)
             }
           })
 

@@ -9,6 +9,7 @@ import PageShell from './components/PageShell.jsx'
 import { activeGuildConfigs, guildConfigs, menuItems } from './config/guildConfig.js'
 import { fallbackGuilds } from './data/fallbackGuilds.js'
 import { fetchGuildSeason, fetchPlayerSeason } from './services/growCastleApi.js'
+import { fetchLatestGuildSnapshots } from './services/latestSnapshotApi.js'
 import {
   compareAndSaveScoreHistory,
   mergeMembersWithHistory,
@@ -1997,6 +1998,25 @@ function App() {
 
   useEffect(() => {
     let isMounted = true
+    fetchLatestGuildSnapshots()
+      .then((snapshots) => {
+        if (!isMounted || snapshots.length === 0) return
+
+        setGuildData((current) => ({
+          ...current,
+          ...Object.fromEntries(snapshots.map((snapshot) => [snapshot.guildName, snapshot.data])),
+        }))
+        setLastRefreshedAtByGuild((current) => ({
+          ...current,
+          ...Object.fromEntries(snapshots.map((snapshot) => [snapshot.guildName, snapshot.capturedAt])),
+        }))
+        setApiStates((current) => ({
+          ...current,
+          ...Object.fromEntries(snapshots.map((snapshot) => [snapshot.guildName, { status: 'success' }])),
+        }))
+      })
+      .catch(() => {})
+
     fetchWphReport()
       .then((payload) => {
         if (isMounted) setServerWphReport(payload)

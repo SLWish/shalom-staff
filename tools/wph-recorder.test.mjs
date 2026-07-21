@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   buildReport,
+  countCrystalSkips,
   formatScoreBreakdown,
   getSeasonDownMinutes,
   getNextCheckpointTime,
@@ -72,6 +73,29 @@ test('batched API updates are decomposed into normal clears', () => {
     total: 151,
   })
   assert.equal(formatScoreBreakdown(deltas), '25x6+1')
+})
+
+test('timed batches cannot contain more ordinary clears than the elapsed time allows', () => {
+  const deltas = [
+    ...Array(20).fill(6),
+    { batched: true, delta: 12, elapsedMs: 20_000 },
+    { batched: true, delta: 39, elapsedMs: 26_000 },
+    { batched: true, delta: 60, elapsedMs: 40_000 },
+  ]
+
+  assert.deepEqual(summarizeScoreDeltas(deltas), {
+    autoExtra: 3,
+    baseCount: 26,
+    baseJump: 6,
+    crystalExtra: 72,
+    total: 231,
+  })
+  assert.equal(formatScoreBreakdown(deltas), '26x6+72+3')
+})
+
+test('multiple crystal jumps in one timed batch are counted separately', () => {
+  const deltas = [...Array(20).fill(6), { batched: true, delta: 60, elapsedMs: 40_000 }]
+  assert.equal(countCrystalSkips(deltas), 2)
 })
 
 test('exact low-jump multiples use each member base score before crystal skips', () => {
