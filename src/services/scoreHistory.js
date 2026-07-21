@@ -246,14 +246,16 @@ export function mergeMembersWithHistory(members, history, cutScore, joinedMember
     return {
       ...member,
       history: {
-        firstSeenAt: serverJoin?.joinedAt || record?.firstSeenAt || null,
+        firstSeenAt: serverJoin?.joinedAt || null,
         increasedBy: record?.increasedBy ?? 0,
-        isNewDuringSeason: Boolean(serverJoin || record?.isNewDuringSeason),
+        isNewDuringSeason: Boolean(serverJoin),
         lastCheckedAt: record?.lastCheckedAt || null,
         lastIncreasedAt: record?.lastIncreasedAt || null,
+        locallyObservedNew: Boolean(record?.isNewDuringSeason),
         prediction: record?.prediction || null,
         previousScore: record?.previousScore ?? member.score,
         records: normalizeRecords(record),
+        serverJoinedDuringSeason: Boolean(serverJoin),
         stagnantCount,
         status,
       },
@@ -262,5 +264,5 @@ export function mergeMembersWithHistory(members, history, cutScore, joinedMember
 }
 
 export function isNewMemberForDisplay(member) {
-  return Boolean(member?.history?.isNewDuringSeason)
+  return Boolean(member?.history?.serverJoinedDuringSeason)
 }

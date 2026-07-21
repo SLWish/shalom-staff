@@ -20,6 +20,7 @@ test('server join records mark members as new across browsers', () => {
   )
 
   assert.equal(member.history.isNewDuringSeason, true)
+  assert.equal(member.history.serverJoinedDuringSeason, true)
   assert.equal(member.history.firstSeenAt, '2026-07-20T10:06:21.886Z')
 })
 
@@ -32,4 +33,23 @@ test('a first-day join is displayed even before its cut score is prorated', () =
   )
 
   assert.equal(isNewMemberForDisplay({ ...member, isProratedCut: false }), true)
+})
+
+test('a browser-only new-member guess is not displayed or prorated', () => {
+  const [member] = mergeMembersWithHistory(
+    [{ nickname: 'SL_jamonggani', score: 62000 }],
+    {
+      SL_jamonggani: {
+        firstSeenAt: '2026-07-22T00:00:00.000Z',
+        isNewDuringSeason: true,
+      },
+    },
+    40000,
+    [],
+  )
+
+  assert.equal(member.history.locallyObservedNew, true)
+  assert.equal(member.history.isNewDuringSeason, false)
+  assert.equal(member.history.firstSeenAt, null)
+  assert.equal(isNewMemberForDisplay(member), false)
 })
