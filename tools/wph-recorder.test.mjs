@@ -13,6 +13,7 @@ import {
   parseRecorderText,
   predictNextSeason,
   recordDownActivity,
+  restoreWindowState,
   summarizeScoreDeltas,
 } from './wph-recorder.mjs'
 
@@ -96,6 +97,18 @@ test('season skips and the active 55-minute window are restored from text', () =
   assert.equal(history.seasonSkips.get('ShaLom\u0000SL_Wish'), 2)
   assert.deepEqual(history.windowDeltas.get('ShaLom\u0000SL_Wish'), [31, 6])
   assert.equal(new Date(history.windowStartedAt).toISOString(), '2026-07-20T19:55:05.000Z')
+})
+
+test('restart restores start scores from batched API observations', () => {
+  const memberKey = 'ShaLom\u0000SL_Wish'
+  const restoredWindow = {
+    windowDeltas: new Map([[memberKey, [6, { baseJump: 6, batched: true, delta: 12 }, 7]]]),
+    windowStartedAt: Date.parse('2026-07-21T12:55:00.000Z'),
+  }
+  const windowState = restoreWindowState(new Map([[memberKey, 2025]]), restoredWindow)
+
+  assert.equal(windowState.startScores.get(memberKey), 2000)
+  assert.equal(formatScoreBreakdown(windowState.deltas.get(memberKey)), '4x6+1')
 })
 
 test('next season starts immediately after the five-day API period', () => {

@@ -596,6 +596,21 @@ function createWindow(startedAt, scores) {
   }
 }
 
+export function restoreWindowState(currentScores, restoredWindow) {
+  const startScores = new Map(currentScores)
+  restoredWindow.windowDeltas.forEach((deltas, key) => {
+    const current = currentScores.get(key)
+    if (!Number.isFinite(current)) return
+    const scoreDelta = deltas.reduce((sum, value) => sum + (getDeltaValue(value) || 0), 0)
+    startScores.set(key, current - scoreDelta)
+  })
+  return {
+    deltas: restoredWindow.windowDeltas,
+    startedAt: restoredWindow.windowStartedAt,
+    startScores,
+  }
+}
+
 function addDelta(windowState, key, delta) {
   if (!windowState.deltas.has(key)) windowState.deltas.set(key, [])
   windowState.deltas.get(key).push(delta)
@@ -868,16 +883,7 @@ async function main() {
             tickStartedAt - restoredWindow.windowStartedAt >= 0 &&
             tickStartedAt - restoredWindow.windowStartedAt < 70 * 60 * 1000
           if (canRestoreWindow) {
-            const startScores = new Map(currentScores)
-            restoredWindow.windowDeltas.forEach((deltas, key) => {
-              const current = currentScores.get(key)
-              if (Number.isFinite(current)) startScores.set(key, current - deltas.reduce((sum, delta) => sum + delta, 0))
-            })
-            windowState = {
-              deltas: restoredWindow.windowDeltas,
-              startedAt: restoredWindow.windowStartedAt,
-              startScores,
-            }
+            windowState = restoreWindowState(currentScores, restoredWindow)
             await appendText(
               active.filePath,
               `[측정 재개] ${formatKstDateTime(tickStartedAt)} | ${formatKstTime(restoredWindow.windowStartedAt)} 기준 복원 | 시즌 skip 복원\r\n`,
