@@ -231,9 +231,14 @@ export function compareAndSaveScoreHistory(guildName, members, options = {}) {
   return nextHistory
 }
 
-export function mergeMembersWithHistory(members, history, cutScore) {
+export function mergeMembersWithHistory(members, history, cutScore, joinedMembers = []) {
+  const joinedByNickname = new Map(
+    joinedMembers.filter((member) => member?.nickname && member?.joinedAt).map((member) => [member.nickname, member]),
+  )
+
   return members.map((member) => {
     const record = history[member.nickname]
+    const serverJoin = joinedByNickname.get(member.nickname)
     const stagnantCount = record?.stagnantCount || 0
     const isBelowCut = member.score < cutScore
     const status = isBelowCut && stagnantCount >= 3 ? 'Defeat 의심' : record?.status || '신규 데이터'
@@ -241,9 +246,9 @@ export function mergeMembersWithHistory(members, history, cutScore) {
     return {
       ...member,
       history: {
-        firstSeenAt: record?.firstSeenAt || null,
+        firstSeenAt: serverJoin?.joinedAt || record?.firstSeenAt || null,
         increasedBy: record?.increasedBy ?? 0,
-        isNewDuringSeason: Boolean(record?.isNewDuringSeason),
+        isNewDuringSeason: Boolean(serverJoin || record?.isNewDuringSeason),
         lastCheckedAt: record?.lastCheckedAt || null,
         lastIncreasedAt: record?.lastIncreasedAt || null,
         prediction: record?.prediction || null,

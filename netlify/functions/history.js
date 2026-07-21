@@ -37,6 +37,51 @@ function groupSnapshotsByGuild(rows) {
   }, {})
 }
 
+export function getNewMemberCandidates(currentMembers, baselineMembers) {
+  const baselineNicknames = new Set(baselineMembers.map((member) => member.nickname).filter(Boolean))
+  return currentMembers.filter((member) => member.nickname && !baselineNicknames.has(member.nickname))
+}
+
+async function getJoinedMembers(latestGuilds, latestMemberRows) {
+  const joinedMembers = []
+
+  for (const guild of latestGuilds) {
+    if (!guild.season_key) continue
+
+    const [baselineGuild] = await selectRows(
+      `guild_snapshots?select=captured_at&guild_name=eq.${encodeURIComponent(guild.guild_name)}&season_key=eq.${encodeURIComponent(guild.season_key)}&member_count=gt.0&order=captured_at.asc&limit=1`,
+    )
+    if (!baselineGuild?.captured_at) continue
+
+    const baselineMembers = await selectRows(
+      `member_snapshots?select=nickname&guild_name=eq.${encodeURIComponent(guild.guild_name)}&captured_at=eq.${encodeURIComponent(baselineGuild.captured_at)}`,
+    )
+    const currentMembers = latestMemberRows.filter((member) => member.guild_name === guild.guild_name)
+    const candidates = getNewMemberCandidates(currentMembers, baselineMembers)
+    const firstSeenRows = await Promise.all(
+      candidates.map((member) =>
+        selectRows(
+          `member_snapshots?select=captured_at,score&guild_name=eq.${encodeURIComponent(guild.guild_name)}&season_key=eq.${encodeURIComponent(guild.season_key)}&nickname=eq.${encodeURIComponent(member.nickname)}&order=captured_at.asc&limit=1`,
+        ),
+      ),
+    )
+
+    candidates.forEach((member, index) => {
+      const firstSeen = firstSeenRows[index]?.[0]
+      if (!firstSeen?.captured_at) return
+      joinedMembers.push({
+        guildName: guild.guild_name,
+        joinedAt: firstSeen.captured_at,
+        nickname: member.nickname,
+        scoreAtJoin: Number(firstSeen.score) || 0,
+        seasonKey: guild.season_key,
+      })
+    })
+  }
+
+  return joinedMembers.sort((a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime())
+}
+
 function getDepartedMembers(previousMembers, latestMembers, latestGuild) {
   const latestNicknames = new Set(latestMembers.map((member) => member.nickname).filter(Boolean))
 
@@ -158,12 +203,14 @@ export async function handler() {
 
     const archiveRows = await selectRows('season_archives?select=*&order=saved_at.desc&limit=8')
     const archives = archiveRows.filter(isFinalizedArchive).slice(0, 3)
+    const joinedMembers = await getJoinedMembers(latestGuilds, latestMemberRows)
     const previousSeasonScores = await getPreviousSeasonScores(archives[0])
 
     return json(200, {
       archives: archives.map(normalizeArchive),
       departures: dedupeDepartures(departures, currentNicknamesByGuild),
       guilds: latestGuilds,
+      joinedMembers,
       members: latestMemberRows,
       previousSeasonScores,
     })

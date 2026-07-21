@@ -1984,6 +1984,7 @@ function App() {
   const [selectedGuildName, setSelectedGuildName] = useState(activeGuildConfigs[0].guildName)
   const [serverWphReport, setServerWphReport] = useState(null)
   const [serverDepartedMembers, setServerDepartedMembers] = useState([])
+  const [serverJoinedMembers, setServerJoinedMembers] = useState([])
   const [serverPreviousSeasonScores, setServerPreviousSeasonScores] = useState([])
   const [wphRecordsByGuild, setWphRecordsByGuild] = useState(() =>
     Object.fromEntries(guildConfigs.map((config) => [config.guildName, getLatestWphRecords(config.guildName)])),
@@ -2015,6 +2016,7 @@ function App() {
         const data = guildData[config.guildName] || getFallbackGuild(config, cutScore)
         const history = historyByGuild[config.guildName] || {}
         const serverDepartures = serverDepartedMembers.filter((member) => member.guildName === config.guildName)
+        const serverJoins = serverJoinedMembers.filter((member) => member.guildName === config.guildName)
         const wphRecords = wphRecordsByGuild[config.guildName] || {}
         const seasonStart = parseSeasonStart(data.seasonPeriod)
 
@@ -2028,7 +2030,7 @@ function App() {
           lastRefreshedAt: lastRefreshedAtByGuild[config.guildName] || null,
           departedMembers: mergeDepartedMembers(getDepartedMembersFromHistory(history, config.guildName), serverDepartures),
           members: hasApiData
-            ? mergeMembersWithHistory(data.members || [], history, cutScore).map((member) => {
+            ? mergeMembersWithHistory(data.members || [], history, cutScore, serverJoins).map((member) => {
                 const wph = wphRecords[member.nickname] || {
                   apiDate: null,
                   checkedAt: null,
@@ -2056,7 +2058,7 @@ function App() {
           order: config.order,
         }
       }),
-    [apiStates, cutScores, guildData, historyByGuild, lastRefreshedAtByGuild, previousSeasonScoreMap, serverDepartedMembers, wphRecordsByGuild],
+    [apiStates, cutScores, guildData, historyByGuild, lastRefreshedAtByGuild, previousSeasonScoreMap, serverDepartedMembers, serverJoinedMembers, wphRecordsByGuild],
   )
 
   const staffByGuild = useMemo(
@@ -2245,6 +2247,7 @@ function App() {
       if (!isMounted) return
       if (sharedHistory.archives.length > 0) setArchives(sharedHistory.archives.filter(isFinalizedSeasonArchive))
       setServerDepartedMembers(sharedHistory.departures)
+      setServerJoinedMembers(sharedHistory.joinedMembers)
       setServerPreviousSeasonScores(sharedHistory.previousSeasonScores)
     })
     return () => {

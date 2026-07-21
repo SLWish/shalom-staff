@@ -1,6 +1,7 @@
 const EMPTY_HISTORY = {
   archives: [],
   departures: [],
+  joinedMembers: [],
   previousSeasonScores: [],
 }
 
@@ -18,6 +19,7 @@ export async function fetchSharedHistory() {
     return {
       archives: Array.isArray(payload.archives) ? payload.archives : [],
       departures: Array.isArray(payload.departures) ? payload.departures : [],
+      joinedMembers: Array.isArray(payload.joinedMembers) ? payload.joinedMembers : [],
       previousSeasonScores: Array.isArray(payload.previousSeasonScores) ? payload.previousSeasonScores : [],
     }
   } catch {
