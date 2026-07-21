@@ -1991,6 +1991,8 @@ function App() {
   )
   const archiveSavingRef = useRef(false)
   const loadingGuildsRef = useRef(new Set())
+  const loadingPlayerDetailsRef = useRef(new Set())
+  const playerDetailsFetchedAtRef = useRef(new Map())
   const previousSeasonScoreMap = useMemo(() => createPreviousSeasonScoreMap(serverPreviousSeasonScores), [serverPreviousSeasonScores])
 
   useEffect(() => {
@@ -2130,6 +2132,22 @@ function App() {
     return { failedCount, records: nextRecords }
   }, [])
 
+  const refreshPlayerDetails = useCallback(
+    async (config, members) => {
+      const lastFetchedAt = playerDetailsFetchedAtRef.current.get(config.guildName) || 0
+      if (Date.now() - lastFetchedAt < 60 * 1000 || loadingPlayerDetailsRef.current.has(config.guildName)) return
+
+      loadingPlayerDetailsRef.current.add(config.guildName)
+      try {
+        await fetchPlayerRecordsForGuild(config.guildName, members)
+        playerDetailsFetchedAtRef.current.set(config.guildName, Date.now())
+      } finally {
+        loadingPlayerDetailsRef.current.delete(config.guildName)
+      }
+    },
+    [fetchPlayerRecordsForGuild],
+  )
+
   const refreshGuild = useCallback(
     async (config) => {
       if (loadingGuildsRef.current.has(config.guildName)) return null
@@ -2141,34 +2159,20 @@ function App() {
       try {
         const data = await fetchGuildSeason(config, cutScore)
         const checkedAt = new Date().toISOString()
-        const { failedCount: failedDetailCount, records: playerRecords } = await fetchPlayerRecordsForGuild(config.guildName, data.members)
-        const membersWithLatestScore = data.members.map((member) => {
-          const playerRecord = playerRecords[member.nickname] || {}
-          return {
-            ...member,
-            lastRecordAt: playerRecord.apiDate || null,
-            personalScore: typeof playerRecord.personalScore === 'number' ? playerRecord.personalScore : null,
-            wave: typeof playerRecord.wave === 'number' ? playerRecord.wave : null,
-          }
-        })
-        const nextData = { ...data, members: membersWithLatestScore }
-        const nextHistory = compareAndSaveScoreHistory(config.guildName, membersWithLatestScore, {
+        const nextHistory = compareAndSaveScoreHistory(config.guildName, data.members, {
           checkedAt,
-          playerRecords,
+          playerRecords: {},
           seasonEndAt: data.seasonEndAt,
         })
-        setGuildData((current) => ({ ...current, [config.guildName]: nextData }))
+        setGuildData((current) => ({ ...current, [config.guildName]: data }))
         setHistoryByGuild((current) => ({ ...current, [config.guildName]: nextHistory }))
         setLastRefreshedAtByGuild((current) => ({ ...current, [config.guildName]: checkedAt }))
         updateApiState(config.guildName, {
           status: data.members.length === 0 ? 'empty' : 'success',
           title: data.members.length === 0 ? '데이터 없음' : '갱신 완료',
-          message:
-            failedDetailCount > 0
-              ? `${config.guildName} 갱신 완료 · ${failedDetailCount}명 기록 확인 불가`
-              : `${config.guildName} 최신 데이터입니다.`,
+          message: `${config.guildName} 최신 데이터입니다.`,
         })
-        return nextData
+        return data
       } catch (error) {
         updateApiState(config.guildName, {
           status: 'error',
@@ -2183,7 +2187,7 @@ function App() {
         loadingGuildsRef.current.delete(config.guildName)
       }
     },
-    [cutScores, fetchPlayerRecordsForGuild, updateApiState],
+    [cutScores, updateApiState],
   )
 
   const saveSeasonArchive = useCallback(
@@ -2271,10 +2275,17 @@ function App() {
 
   useEffect(() => {
     if (activePage !== 'members') return
-    guildConfigs.forEach((config) => {
-      if (!guildData[config.guildName]) refreshGuild(config)
+    let cancelled = false
+
+    guildConfigs.forEach(async (config) => {
+      const data = guildData[config.guildName] || await refreshGuild(config)
+      if (!cancelled && data) await refreshPlayerDetails(config, data.members || [])
     })
-  }, [activePage, guildData, refreshGuild])
+
+    return () => {
+      cancelled = true
+    }
+  }, [activePage, guildData, refreshGuild, refreshPlayerDetails])
 
   useEffect(() => {
     if (activePage !== 'attention') return
@@ -2313,9 +2324,6 @@ function App() {
       activeGuildConfigs.forEach((config) => refreshGuild(config))
     }
 
-    if (pageId === 'members') {
-      guildConfigs.forEach((config) => refreshGuild(config))
-    }
   }
 
   return (
