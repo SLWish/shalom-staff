@@ -16,6 +16,7 @@ const outputDirectory = path.resolve(process.env.WPH_OUTPUT_DIR || path.join(pro
 const stopRequestPath = path.join(outputDirectory, '.stop-request')
 const downStatePath = path.join(outputDirectory, '.down-state.json')
 const uploadUrl = process.env.WPH_UPLOAD_URL || 'https://shalom-staff.netlify.app/.netlify/functions/local-wph'
+const rosterEventUploadUrl = process.env.ROSTER_EVENT_UPLOAD_URL || 'https://shalom-staff.netlify.app/.netlify/functions/local-roster-event'
 const selectedGuilds = getSelectedGuilds(process.env.WPH_GUILDS)
 const runOnce = process.argv.includes('--once')
 
@@ -547,6 +548,26 @@ function createScoreMap(guilds) {
   return scores
 }
 
+export function reconcileRoster(previousKeys, currentScores, fetchedGuildNames) {
+  const joinedKeys = []
+  const nextKeys = new Set(previousKeys)
+
+  currentScores.forEach((_, key) => {
+    const { guildName } = splitMemberKey(key)
+    if (fetchedGuildNames.has(guildName) && !previousKeys.has(key)) joinedKeys.push(key)
+  })
+  previousKeys.forEach((key) => {
+    const { guildName } = splitMemberKey(key)
+    if (fetchedGuildNames.has(guildName)) nextKeys.delete(key)
+  })
+  currentScores.forEach((_, key) => {
+    const { guildName } = splitMemberKey(key)
+    if (fetchedGuildNames.has(guildName)) nextKeys.add(key)
+  })
+
+  return { joinedKeys, nextKeys }
+}
+
 function getPrimarySeason(guilds) {
   return guilds.find((guild) => guild.season)?.season || null
 }
@@ -715,6 +736,21 @@ async function uploadReport(report, activeSeason, slotAt, collectSecret) {
   return payload
 }
 
+async function uploadRosterEvents(events, activeSeason, collectSecret) {
+  if (!collectSecret || events.length === 0) return { skipped: true }
+  const response = await fetch(rosterEventUploadUrl, {
+    body: JSON.stringify({ events, seasonKey: activeSeason.meta.key }),
+    headers: {
+      Authorization: `Bearer ${collectSecret}`,
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || `Roster event upload failed ${response.status}`)
+  return payload
+}
+
 async function acquireLock() {
   await mkdir(outputDirectory, { recursive: true })
   await rm(stopRequestPath, { force: true })
@@ -756,6 +792,8 @@ async function main() {
   let baseSamples = new Map()
   let seasonDownTrackers = new Map()
   let seasonSkipTotals = new Map()
+  let lastRosterKeys = new Set()
+  const pendingRosterEvents = new Map()
   const unavailableGuildSince = new Map()
   let windowState = null
 
@@ -869,6 +907,40 @@ async function main() {
           windowState = createWindow(tickStartedAt, lastScores)
           nextCheckpointAt = getNextCheckpointTime(tickStartedAt)
           await appendText(active.filePath, `[새 시즌 시작 확인] ${formatKstDateTime(tickStartedAt)} | 0점부터 이어서 기록\r\n`)
+        }
+      }
+
+      if (lastRosterKeys.size === 0) {
+        lastRosterKeys = new Set(currentScores.keys())
+      } else {
+        const roster = reconcileRoster(lastRosterKeys, currentScores, fetchedGuildNames)
+        lastRosterKeys = roster.nextKeys
+        if (roster.joinedKeys.length > 0) {
+          const events = roster.joinedKeys.map((key) => {
+            const member = splitMemberKey(key)
+            return {
+              guildName: member.guildName,
+              nickname: member.nickname,
+              observedAt: new Date(tickStartedAt).toISOString(),
+              score: currentScores.get(key) || 0,
+            }
+          })
+          events.forEach((event) => pendingRosterEvents.set(`${active.meta.key}:${event.guildName}:${event.nickname}`, event))
+          await appendText(
+            active.filePath,
+            `[가입 관측] ${formatKstDateTime(tickStartedAt)} | ${events.map((event) => `${event.guildName}/${event.nickname} (${event.score.toLocaleString('en-US')}점)`).join('; ')}\r\n`,
+          )
+        }
+      }
+
+      if (pendingRosterEvents.size > 0) {
+        try {
+          const pendingEvents = [...pendingRosterEvents.values()]
+          await uploadRosterEvents(pendingEvents, active, collectSecret)
+          pendingRosterEvents.clear()
+          await appendText(active.filePath, `[가입 관측 웹 반영] ${formatKstDateTime(tickStartedAt)}\r\n`)
+        } catch (error) {
+          if (errors.length === 0) errors.push(`가입 관측: ${error.message}`)
         }
       }
 

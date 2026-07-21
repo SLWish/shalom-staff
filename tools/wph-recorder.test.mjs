@@ -13,6 +13,7 @@ import {
   parseRecorderText,
   predictNextSeason,
   recordDownActivity,
+  reconcileRoster,
   restoreWindowState,
   summarizeScoreDeltas,
 } from './wph-recorder.mjs'
@@ -109,6 +110,18 @@ test('restart restores start scores from batched API observations', () => {
 
   assert.equal(windowState.startScores.get(memberKey), 2000)
   assert.equal(formatScoreBreakdown(windowState.deltas.get(memberKey)), '4x6+1')
+})
+
+test('roster reconciliation detects joins and preserves unavailable guilds', () => {
+  const previous = new Set(['ShaLom\u0000SL_Wish', 'ShaLom2\u0000SL_Old'])
+  const current = new Map([
+    ['ShaLom\u0000SL_Wish', 100],
+    ['ShaLom\u0000SL_New', 5],
+  ])
+  const result = reconcileRoster(previous, current, new Set(['ShaLom']))
+
+  assert.deepEqual(result.joinedKeys, ['ShaLom\u0000SL_New'])
+  assert.deepEqual([...result.nextKeys].sort(), ['ShaLom\u0000SL_New', 'ShaLom\u0000SL_Wish', 'ShaLom2\u0000SL_Old'])
 })
 
 test('next season starts immediately after the five-day API period', () => {

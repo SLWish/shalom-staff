@@ -1,6 +1,7 @@
 import { selectRows } from './_shared/supabaseRest.js'
 
 const ARCHIVE_TARGET_TOLERANCE_MS = 10 * 60 * 1000
+const LOCAL_ROSTER_GUILD_NAME = '__local_roster__'
 
 function json(statusCode, body) {
   return {
@@ -44,6 +45,21 @@ export function getNewMemberCandidates(currentMembers, baselineMembers) {
 
 async function getJoinedMembers(latestGuilds, latestMemberRows) {
   const joinedMembers = []
+  const seasonKeys = [...new Set(latestGuilds.map((guild) => guild.season_key).filter(Boolean))]
+  const localEventPages = await Promise.all(
+    seasonKeys.map((seasonKey) =>
+      selectRows(
+        `member_snapshots?select=captured_at,season_key,raw_json&guild_name=eq.${LOCAL_ROSTER_GUILD_NAME}&season_key=eq.${encodeURIComponent(seasonKey)}&order=captured_at.asc&limit=500`,
+      ),
+    ),
+  )
+  const localJoinByMember = new Map()
+  localEventPages.flat().forEach((row) => {
+    const event = row.raw_json || {}
+    if (event.event !== 'joined' || !event.guildName || !event.nickname) return
+    const key = `${row.season_key}:${event.guildName}:${event.nickname}`
+    if (!localJoinByMember.has(key)) localJoinByMember.set(key, event)
+  })
 
   for (const guild of latestGuilds) {
     if (!guild.season_key) continue
@@ -59,11 +75,15 @@ async function getJoinedMembers(latestGuilds, latestMemberRows) {
     const currentMembers = latestMemberRows.filter((member) => member.guild_name === guild.guild_name)
     const candidates = getNewMemberCandidates(currentMembers, baselineMembers)
     const firstSeenRows = await Promise.all(
-      candidates.map((member) =>
-        selectRows(
+      candidates.map((member) => {
+        const localJoin = localJoinByMember.get(`${guild.season_key}:${guild.guild_name}:${member.nickname}`)
+        if (localJoin?.observedAt) {
+          return [{ captured_at: localJoin.observedAt, score: localJoin.score, source: localJoin.source }]
+        }
+        return selectRows(
           `member_snapshots?select=captured_at,score&guild_name=eq.${encodeURIComponent(guild.guild_name)}&season_key=eq.${encodeURIComponent(guild.season_key)}&nickname=eq.${encodeURIComponent(member.nickname)}&order=captured_at.asc&limit=1`,
-        ),
-      ),
+        )
+      }),
     )
 
     candidates.forEach((member, index) => {
@@ -75,6 +95,7 @@ async function getJoinedMembers(latestGuilds, latestMemberRows) {
         nickname: member.nickname,
         scoreAtJoin: Number(firstSeen.score) || 0,
         seasonKey: guild.season_key,
+        source: firstSeen.source || 'server-snapshot',
       })
     })
   }
@@ -146,12 +167,12 @@ async function getPreviousSeasonScores(archive) {
   const capturedAt = archiveJson.recoveredFromSnapshotAt || archiveJson.savedAt || archive.saved_at
   const capturedFilter = capturedAt ? `&captured_at=eq.${encodeURIComponent(capturedAt)}` : ''
   let members = await selectRows(
-    `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__${capturedFilter}&limit=200`,
+    `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}${capturedFilter}&limit=200`,
   )
 
   if (members.length === 0) {
     members = await selectRows(
-      `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&order=captured_at.desc&limit=200`,
+      `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}&order=captured_at.desc&limit=200`,
     )
   }
 
