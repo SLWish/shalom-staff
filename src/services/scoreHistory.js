@@ -260,3 +260,7 @@ export function mergeMembersWithHistory(members, history, cutScore, joinedMember
     }
   })
 }
+
+export function isNewMemberForDisplay(member) {
+  return Boolean(member?.history?.isNewDuringSeason)
+}

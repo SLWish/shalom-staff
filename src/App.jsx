@@ -12,6 +12,7 @@ import { fetchGuildSeason, fetchPlayerSeason } from './services/growCastleApi.js
 import { fetchLatestGuildSnapshots } from './services/latestSnapshotApi.js'
 import {
   compareAndSaveScoreHistory,
+  isNewMemberForDisplay,
   mergeMembersWithHistory,
   readScoreHistory,
 } from './services/scoreHistory.js'
@@ -792,7 +793,7 @@ function getGuildStaffData(guild, cutScores, wphReport) {
   return {
     inactiveMembers: sortInactiveMembers(activityMembers.filter((member) => member.diffHours !== null && member.diffHours >= INACTIVE_HOURS_THRESHOLD)),
     moveCandidates: getMoveCandidatesForGuild(guild, cutScores, wphReport),
-    newMembers: sortByScore(activityMembers.filter((member) => member.isProratedCut)),
+    newMembers: sortByScore(activityMembers.filter(isNewMemberForDisplay)),
     nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
     seasonNotJoinedMembers: sortInactiveMembers(activityMembers.filter((member) => member.seasonNotJoined)),
     shortageHiddenCount: showShortageMembers ? 0 : allShortageMembers.length,
