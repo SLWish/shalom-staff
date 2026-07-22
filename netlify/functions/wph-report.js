@@ -404,7 +404,11 @@ export function mergeLocalWph(report, localRows) {
       const entries = new Map()
       const localEntries = rowsByNickname[member.nickname] || []
       const reportDetails = member.detailHourly || []
-      const recentActiveDetails = reportDetails.filter((detail) => (parseDetailBase(detail)?.baseCount || 0) >= 40)
+      const reportActiveDetails = reportDetails.filter((detail) => (parseDetailBase(detail)?.baseCount || 0) >= 40)
+      const localActiveDetails = localEntries
+        .map((entry) => entry.detail)
+        .filter((detail) => (parseDetailBase(detail)?.baseCount || 0) >= 40)
+      const recentActiveDetails = reportActiveDetails.length >= 2 ? reportActiveDetails : localActiveDetails.slice(0, 2)
       const previousDetails = recentActiveDetails.length >= 2
         ? recentActiveDetails
         : [...reportDetails, ...localEntries.map((entry) => entry.detail)]
