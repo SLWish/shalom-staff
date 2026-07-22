@@ -105,8 +105,8 @@ function GuildSummaryCard({ guild, stats, summary }) {
           <strong>{stats.seasonNotJoinedCount}명</strong>
         </div>
         <div>
-          <span>기록 불가</span>
-          <strong>{stats.unverifiedCount}명</strong>
+          <span>{stats.unverifiedCount > 0 ? '기록 불가' : stats.detailPendingCount > 0 ? '상세 미조회' : '기록 불가'}</span>
+          <strong>{stats.unverifiedCount > 0 ? stats.unverifiedCount : stats.detailPendingCount}명</strong>
         </div>
         <div>
           <span>신규 확인</span>
@@ -173,9 +173,13 @@ function GuildSummaryCard({ guild, stats, summary }) {
           )}
         />
         <SummaryList
-          emptyText="기록 확인 불가 없음"
+          emptyText={
+            summary.detailPendingMembers.length > 0
+              ? `개인 상세 미조회 ${summary.detailPendingMembers.length}명 · 전체 인원에서 확인`
+              : '기록 확인 불가 없음'
+          }
           items={summary.unverifiedMembers}
-          title="기록 확인 불가"
+          title={summary.unverifiedMembers.length > 0 ? '기록 확인 불가' : '개인 상세'}
           renderItem={(member) => (
             <>
               <div className="member-title-row">

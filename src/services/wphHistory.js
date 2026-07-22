@@ -159,5 +159,6 @@ export function getLatestWphRecords(guildName) {
     return {}
   }
 
-  return history.checkpoints[latestKey]?.records || {}
+  const records = history.checkpoints[latestKey]?.records || {}
+  return Object.fromEntries(Object.entries(records).filter(([, record]) => record?.fetchStatus !== 'error'))
 }

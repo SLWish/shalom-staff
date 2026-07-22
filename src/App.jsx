@@ -369,15 +369,17 @@ function getActivityMeta(member, seasonStart) {
   const rawApiDate = member.lastRecordDate || member.apiDate || member.wph?.apiDate || null
   const diffHours = getDiffHoursFromApiDate(rawApiDate)
   const hasValidDate = diffHours !== null
+  const detailsNotLoaded = member.wph?.fetchStatus === 'idle'
   const seasonNotJoined = isSeasonNotJoined(member, seasonStart)
   const inactiveOverSixHours = hasValidDate && diffHours >= INACTIVE_HOURS_THRESHOLD
   let activityStatus = '최근 활동'
 
-  if (!hasValidDate) activityStatus = '기록 확인 불가'
+  if (!hasValidDate) activityStatus = detailsNotLoaded ? '상세 미조회' : '기록 확인 불가'
   else if (seasonNotJoined) activityStatus = '시즌 미참여'
   else if (inactiveOverSixHours) activityStatus = '6시간 이상 미활동'
 
   return {
+    detailsNotLoaded,
     activityStatus,
     diffHours,
     inactiveOverSixHours,
@@ -793,6 +795,7 @@ function getGuildStaffData(guild, cutScores, wphReport) {
 
   return {
     inactiveMembers: sortInactiveMembers(activityMembers.filter((member) => member.diffHours !== null && member.diffHours >= INACTIVE_HOURS_THRESHOLD)),
+    detailPendingMembers: sortByScore(activityMembers.filter((member) => member.wph?.fetchStatus === 'idle')),
     moveCandidates: getMoveCandidatesForGuild(guild, cutScores, wphReport),
     newMembers: sortByScore(activityMembers.filter(isNewMemberForDisplay)),
     nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
@@ -801,7 +804,7 @@ function getGuildStaffData(guild, cutScores, wphReport) {
     shortageHiddenCount: showShortageMembers ? 0 : allShortageMembers.length,
     shortageMembers: showShortageMembers ? allShortageMembers : [],
     showShortageMembers,
-    unverifiedMembers: sortByScore(activityMembers.filter((member) => member.diffHours === null)),
+    unverifiedMembers: sortByScore(activityMembers.filter((member) => member.diffHours === null && member.wph?.fetchStatus === 'error')),
   }
 }
 
@@ -815,6 +818,7 @@ function getGuildStats(guild, staffData) {
     averageScore: memberCount > 0 ? Math.round(totalScore / memberCount) : 0,
     availableSlots: MAX_GUILD_MEMBERS - memberCount,
     cutScore: guild.cutScore,
+    detailPendingCount: staffData.detailPendingMembers.length,
     inactiveSixHourCount: staffData.inactiveMembers.length,
     maxMembers: MAX_GUILD_MEMBERS,
     memberCount,
@@ -2100,13 +2104,13 @@ function App() {
                 const wph = wphRecords[member.nickname] || {
                   apiDate: null,
                   checkedAt: null,
-                  fetchStatus: 'error',
+                  fetchStatus: 'idle',
                   lastRecordDate: null,
                   scoreDelta: null,
                   wave: null,
                   waveDelta: null,
                   wph: null,
-                  wphStatus: '기록 확인 불가',
+                  wphStatus: '상세 미조회',
                 }
                 const cutMeta = getMemberCutMeta(member, data, cutScore)
 
