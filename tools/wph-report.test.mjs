@@ -44,7 +44,7 @@ test('local 10-second report replaces the matching server hour and detail', () =
 })
 
 test('an API recovery total uses the member previous base detail as an estimate', () => {
-  assert.equal(estimateWaveDetail(837, ['166x5+33', '167x5+33']), '167x5+2 (추정)')
-  assert.equal(estimateWaveDetail(1202, ['167x6+120+105', '174x6+104']), '174x6+158 (추정)')
+  assert.equal(estimateWaveDetail(837, ['166x5+33', '167x5+33']), '161x5+32 (추정)')
+  assert.equal(estimateWaveDetail(1202, ['167x6+120+105', '174x6+104']), '172x6+170 (추정)')
   assert.equal(estimateWaveDetail(1038, ['175x6', '180x6']), '173x6 (추정)')
 })

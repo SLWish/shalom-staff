@@ -345,9 +345,18 @@ function getSeasonKey(startAt, endAt) {
 }
 
 function parseDetailBase(detail) {
-  const match = String(detail || '').match(/^(\d+)x([1-9])(?:\+|$)/)
+  const text = String(detail || '')
+  if (text.includes('(추정)')) return null
+  const match = text.match(/^(\d+)x([1-9])((?:\+\d+)*)$/)
   if (!match) return null
-  return { baseCount: Number(match[1]), baseJump: Number(match[2]) }
+  const baseCount = Number(match[1])
+  const baseJump = Number(match[2])
+  const extra = (match[3].match(/\d+/g) || []).reduce((sum, value) => sum + Number(value), 0)
+  return {
+    baseCount,
+    baseJump,
+    scorePerClear: (baseCount * baseJump + extra) / baseCount,
+  }
 }
 
 export function estimateWaveDetail(total, previousDetails) {
@@ -362,14 +371,12 @@ export function estimateWaveDetail(total, previousDetails) {
     return counts
   }, new Map())
   const baseJump = [...baseCounts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0]
-  const matchingCounts = parsed
-    .filter((detail) => detail.baseJump === baseJump)
-    .map((detail) => detail.baseCount)
-  const activeCounts = matchingCounts.filter((count) => count >= 40)
-  const referenceCounts = activeCounts.length > 0 ? activeCounts : matchingCounts
-  const sortedCounts = [...referenceCounts].sort((a, b) => a - b)
-  const typicalCount = sortedCounts[Math.floor(sortedCounts.length / 2)]
-  const baseCount = Math.max(1, Math.min(Math.floor(value / baseJump), typicalCount))
+  const matching = parsed.filter((detail) => detail.baseJump === baseJump)
+  const active = matching.filter((detail) => detail.baseCount >= 40)
+  const reference = (active.length > 0 ? active : matching).slice(0, 4)
+  const scorePerClear = reference.reduce((sum, detail) => sum + detail.scorePerClear, 0) / reference.length
+  const estimatedCount = Math.round(value / scorePerClear)
+  const baseCount = Math.max(1, Math.min(Math.floor(value / baseJump), estimatedCount))
   const remainder = value - baseCount * baseJump
   return `${baseCount}x${baseJump}${remainder > 0 ? `+${remainder}` : ''} (추정)`
 }
