@@ -344,6 +344,36 @@ function getSeasonKey(startAt, endAt) {
   return `${String(startAt).slice(0, 10)}_${String(endAt).slice(0, 10)}`
 }
 
+function parseDetailBase(detail) {
+  const match = String(detail || '').match(/^(\d+)x([1-9])(?:\+|$)/)
+  if (!match) return null
+  return { baseCount: Number(match[1]), baseJump: Number(match[2]) }
+}
+
+export function estimateWaveDetail(total, previousDetails) {
+  const value = Number(total)
+  if (!Number.isFinite(value) || value <= 0) return String(total ?? 0)
+
+  const parsed = previousDetails.map(parseDetailBase).filter(Boolean)
+  if (parsed.length === 0) return String(value)
+
+  const baseCounts = parsed.reduce((counts, detail) => {
+    counts.set(detail.baseJump, (counts.get(detail.baseJump) || 0) + 1)
+    return counts
+  }, new Map())
+  const baseJump = [...baseCounts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0]
+  const matchingCounts = parsed
+    .filter((detail) => detail.baseJump === baseJump)
+    .map((detail) => detail.baseCount)
+  const activeCounts = matchingCounts.filter((count) => count >= 40)
+  const referenceCounts = activeCounts.length > 0 ? activeCounts : matchingCounts
+  const sortedCounts = [...referenceCounts].sort((a, b) => a - b)
+  const typicalCount = sortedCounts[Math.floor(sortedCounts.length / 2)]
+  const baseCount = Math.max(1, Math.min(Math.floor(value / baseJump), typicalCount))
+  const remainder = value - baseCount * baseJump
+  return `${baseCount}x${baseJump}${remainder > 0 ? `+${remainder}` : ''} (추정)`
+}
+
 export function mergeLocalWph(report, localRows) {
   if (!report?.members?.length || !localRows.length) return report
   const rowsByNickname = localRows.reduce((grouped, row) => {
@@ -365,13 +395,22 @@ export function mergeLocalWph(report, localRows) {
     ...report,
     members: report.members.map((member) => {
       const entries = new Map()
+      const localEntries = rowsByNickname[member.nickname] || []
+      const previousDetails = [
+        ...(member.detailHourly || []),
+        ...localEntries.map((entry) => entry.detail),
+      ]
       member.hourly.forEach((value, index) => {
         const slotAt = member.hourlySlots?.[index]
         const key = getHourKey(slotAt)
         if (!key) return
-        entries.set(key, { detail: member.detailHourly?.[index] || String(value ?? 0), slotAt, value })
+        const detail = member.detailHourly?.[index] || String(value ?? 0)
+        const estimatedDetail = typeof value === 'number' && /^\d+$/.test(detail)
+          ? estimateWaveDetail(value, previousDetails)
+          : detail
+        entries.set(key, { detail: estimatedDetail, slotAt, value })
       })
-      ;(rowsByNickname[member.nickname] || []).forEach((entry) => {
+      localEntries.forEach((entry) => {
         const key = getHourKey(entry.slotAt)
         if (key && Number.isFinite(entry.value)) entries.set(key, entry)
       })
@@ -380,10 +419,10 @@ export function mergeLocalWph(report, localRows) {
         .sort((a, b) => toTime(a.slotAt) - toTime(b.slotAt))
         .slice(-INTERVAL_COUNT)
       const validValues = merged.map((entry) => entry.value).filter(Number.isFinite)
-      const latestSeasonSkips = [...(rowsByNickname[member.nickname] || [])]
+      const latestSeasonSkips = [...localEntries]
         .filter((entry) => Number.isFinite(entry.seasonSkips))
         .sort((a, b) => toTime(b.slotAt) - toTime(a.slotAt))[0]?.seasonSkips
-      const latestSeasonDownMinutes = [...(rowsByNickname[member.nickname] || [])]
+      const latestSeasonDownMinutes = [...localEntries]
         .filter((entry) => Number.isFinite(entry.seasonDownMinutes))
         .sort((a, b) => toTime(b.slotAt) - toTime(a.slotAt))[0]?.seasonDownMinutes
       return {

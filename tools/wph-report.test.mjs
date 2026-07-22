@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { mergeLocalWph } from '../netlify/functions/wph-report.js'
+import { estimateWaveDetail, mergeLocalWph } from '../netlify/functions/wph-report.js'
 
 test('local 10-second report replaces the matching server hour and detail', () => {
   const slotAt = '2026-07-20T20:55:00.000Z'
@@ -41,4 +41,10 @@ test('local 10-second report replaces the matching server hour and detail', () =
   assert.equal(merged.members[0].averageWph, 1398)
   assert.equal(merged.members[0].downMinutes, 37)
   assert.equal(merged.members[0].skips, 11)
+})
+
+test('an API recovery total uses the member previous base detail as an estimate', () => {
+  assert.equal(estimateWaveDetail(837, ['166x5+33', '167x5+33']), '167x5+2 (추정)')
+  assert.equal(estimateWaveDetail(1202, ['167x6+120+105', '174x6+104']), '174x6+158 (추정)')
+  assert.equal(estimateWaveDetail(1038, ['175x6', '180x6']), '173x6 (추정)')
 })
