@@ -48,3 +48,32 @@ test('an API recovery total uses the member previous base detail as an estimate'
   assert.equal(estimateWaveDetail(1202, ['167x6+120+105', '174x6+104']), '172x6+170 (추정)')
   assert.equal(estimateWaveDetail(1038, ['175x6', '180x6']), '173x6 (추정)')
 })
+
+test('recent complete details take priority over older local history', () => {
+  const slotAt = '2026-07-22T12:55:00.000Z'
+  const report = {
+    guildName: 'ShaLom',
+    seasonEndAt: '2026-07-24T14:54:59.000Z',
+    seasonStartAt: '2026-07-19T15:00:00.000Z',
+    members: [{
+      detailHourly: ['166x5+33', '167x5+33', '0', '837'],
+      hourly: [863, 868, null, 837],
+      hourlySlots: [
+        '2026-07-22T04:55:00.000Z',
+        '2026-07-22T05:55:00.000Z',
+        '2026-07-22T06:55:00.000Z',
+        slotAt,
+      ],
+      nickname: 'SL_Limit',
+    }],
+  }
+  const localRows = [{
+    captured_at: '2026-07-22T03:55:00.000Z',
+    raw_json: { detail: '150x5+80', guildName: 'ShaLom', nickname: 'SL_Limit', wph: 830 },
+    score: 830,
+    season_key: '2026-07-19_2026-07-24',
+  }]
+
+  const merged = mergeLocalWph(report, localRows)
+  assert.equal(merged.members[0].detailHourly.at(-1), '161x5+32 (추정)')
+})
