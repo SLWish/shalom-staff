@@ -2,6 +2,9 @@ import { selectRows } from './_shared/supabaseRest.js'
 
 const ARCHIVE_TARGET_TOLERANCE_MS = 10 * 60 * 1000
 const LOCAL_ROSTER_GUILD_NAME = '__local_roster__'
+const ACTIVE_GUILD_NAMES = new Set(['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4'])
+const REST_GUILD_NAMES = new Set(['ShaLom5', 'ShaLom6'])
+const TRACKED_GUILD_NAMES = new Set([...ACTIVE_GUILD_NAMES, ...REST_GUILD_NAMES])
 
 function json(statusCode, body) {
   return {
@@ -43,6 +46,13 @@ export function getNewMemberCandidates(currentMembers, baselineMembers) {
   return currentMembers.filter((member) => member.nickname && !baselineNicknames.has(member.nickname))
 }
 
+export function classifyGuildArrival(targetGuildName, previousGuildName) {
+  if (!previousGuildName) return 'new'
+  if (ACTIVE_GUILD_NAMES.has(targetGuildName) && REST_GUILD_NAMES.has(previousGuildName)) return 'returning'
+  if (ACTIVE_GUILD_NAMES.has(targetGuildName) && previousGuildName === targetGuildName) return 'returning'
+  return 'transfer'
+}
+
 async function getJoinedMembers(latestGuilds, latestMemberRows) {
   const joinedMembers = []
   const seasonKeys = [...new Set(latestGuilds.map((guild) => guild.season_key).filter(Boolean))]
@@ -54,11 +64,15 @@ async function getJoinedMembers(latestGuilds, latestMemberRows) {
     ),
   )
   const localJoinByMember = new Map()
+  const localJoinHistoryByNickname = new Map()
   localEventPages.flat().forEach((row) => {
     const event = row.raw_json || {}
     if (event.event !== 'joined' || !event.guildName || !event.nickname) return
     const key = `${row.season_key}:${event.guildName}:${event.nickname}`
     if (!localJoinByMember.has(key)) localJoinByMember.set(key, event)
+    const history = localJoinHistoryByNickname.get(event.nickname) || []
+    history.push(event)
+    localJoinHistoryByNickname.set(event.nickname, history)
   })
 
   for (const guild of latestGuilds) {
@@ -85,14 +99,34 @@ async function getJoinedMembers(latestGuilds, latestMemberRows) {
         )
       }),
     )
+    const priorGuildRows = await Promise.all(
+      candidates.map((member, index) => {
+        const firstSeen = firstSeenRows[index]?.[0]
+        if (!firstSeen?.captured_at) return []
+        const firstSeenTime = new Date(firstSeen.captured_at).getTime()
+        const previousLocalJoin = (localJoinHistoryByNickname.get(member.nickname) || [])
+          .filter((event) => TRACKED_GUILD_NAMES.has(event.guildName) && new Date(event.observedAt).getTime() < firstSeenTime)
+          .sort((a, b) => new Date(b.observedAt).getTime() - new Date(a.observedAt).getTime())[0]
+        if (previousLocalJoin) {
+          return [{ captured_at: previousLocalJoin.observedAt, guild_name: previousLocalJoin.guildName }]
+        }
+        return selectRows(
+          `member_snapshots?select=guild_name,captured_at&nickname=eq.${encodeURIComponent(member.nickname)}&captured_at=lt.${encodeURIComponent(firstSeen.captured_at)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}&order=captured_at.desc&limit=20`,
+        )
+      }),
+    )
 
     candidates.forEach((member, index) => {
       const firstSeen = firstSeenRows[index]?.[0]
       if (!firstSeen?.captured_at) return
+      const previousGuild = priorGuildRows[index]?.find((row) => TRACKED_GUILD_NAMES.has(row.guild_name))
       joinedMembers.push({
+        arrivalType: classifyGuildArrival(guild.guild_name, previousGuild?.guild_name || null),
         guildName: guild.guild_name,
         joinedAt: firstSeen.captured_at,
         nickname: member.nickname,
+        previousGuildName: previousGuild?.guild_name || null,
+        previousSeenAt: previousGuild?.captured_at || null,
         scoreAtJoin: Number(firstSeen.score) || 0,
         seasonKey: guild.season_key,
         source: firstSeen.source || 'server-snapshot',

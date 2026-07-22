@@ -239,6 +239,8 @@ export function mergeMembersWithHistory(members, history, cutScore, joinedMember
   return members.map((member) => {
     const record = history[member.nickname]
     const serverJoin = joinedByNickname.get(member.nickname)
+    const arrivalType = serverJoin?.arrivalType || (serverJoin ? 'new' : null)
+    const isSeasonArrival = arrivalType === 'new' || arrivalType === 'returning'
     const stagnantCount = record?.stagnantCount || 0
     const isBelowCut = member.score < cutScore
     const status = isBelowCut && stagnantCount >= 3 ? 'Defeat 의심' : record?.status || '신규 데이터'
@@ -246,16 +248,19 @@ export function mergeMembersWithHistory(members, history, cutScore, joinedMember
     return {
       ...member,
       history: {
+        arrivalType,
         firstSeenAt: serverJoin?.joinedAt || null,
         increasedBy: record?.increasedBy ?? 0,
-        isNewDuringSeason: Boolean(serverJoin),
+        isNewDuringSeason: isSeasonArrival,
         lastCheckedAt: record?.lastCheckedAt || null,
         lastIncreasedAt: record?.lastIncreasedAt || null,
         locallyObservedNew: Boolean(record?.isNewDuringSeason),
         prediction: record?.prediction || null,
+        previousGuildName: serverJoin?.previousGuildName || null,
+        previousSeenAt: serverJoin?.previousSeenAt || null,
         previousScore: record?.previousScore ?? member.score,
         records: normalizeRecords(record),
-        serverJoinedDuringSeason: Boolean(serverJoin),
+        serverJoinedDuringSeason: isSeasonArrival,
         stagnantCount,
         status,
       },
@@ -264,5 +269,9 @@ export function mergeMembersWithHistory(members, history, cutScore, joinedMember
 }
 
 export function isNewMemberForDisplay(member) {
-  return Boolean(member?.history?.serverJoinedDuringSeason)
+  return Boolean(member?.history?.serverJoinedDuringSeason && member.history.arrivalType === 'new')
+}
+
+export function isReturningMemberForDisplay(member) {
+  return Boolean(member?.history?.serverJoinedDuringSeason && member.history.arrivalType === 'returning')
 }

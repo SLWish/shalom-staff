@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const KST_TIME_ZONE = 'Asia/Seoul'
 const DEFAULT_GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
+const ROSTER_GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4', 'ShaLom5', 'ShaLom6']
 const CHECKPOINT_MINUTES = [10, 25, 40, 55]
 const API_BASE_URL = 'https://raongames.com/growcastle/restapi/season/now/guilds'
 const POLL_INTERVAL_MS = getPositiveNumber(process.env.WPH_POLL_SECONDS, 10) * 1000
@@ -18,6 +19,7 @@ const downStatePath = path.join(outputDirectory, '.down-state.json')
 const uploadUrl = process.env.WPH_UPLOAD_URL || 'https://shalom-staff.netlify.app/.netlify/functions/local-wph'
 const rosterEventUploadUrl = process.env.ROSTER_EVENT_UPLOAD_URL || 'https://shalom-staff.netlify.app/.netlify/functions/local-roster-event'
 const selectedGuilds = getSelectedGuilds(process.env.WPH_GUILDS)
+const observedGuilds = [...new Set([...selectedGuilds, ...ROSTER_GUILDS])]
 const runOnce = process.argv.includes('--once')
 
 function getPositiveNumber(value, fallback) {
@@ -618,13 +620,13 @@ async function fetchGuild(guildName) {
 }
 
 async function fetchGuilds() {
-  const settled = await Promise.allSettled(selectedGuilds.map(fetchGuild))
+  const settled = await Promise.allSettled(observedGuilds.map(fetchGuild))
   const guilds = []
   const errors = []
 
   settled.forEach((result, index) => {
     if (result.status === 'fulfilled') guilds.push(result.value)
-    else errors.push(`${selectedGuilds[index]}: ${result.reason?.message || '조회 실패'}`)
+    else errors.push(`${observedGuilds[index]}: ${result.reason?.message || '조회 실패'}`)
   })
 
   if (guilds.length === 0) {
@@ -952,9 +954,17 @@ async function main() {
     const tickStartedAt = Date.now()
     try {
       const { errors, guilds } = await fetchGuilds()
-      const apiSeason = getPrimarySeason(guilds)
-      const currentScores = createScoreMap(guilds)
-      const fetchedGuildNames = new Set(guilds.map((guild) => guild.guildName))
+      const wphGuilds = guilds.filter((guild) => selectedGuilds.includes(guild.guildName))
+      if (wphGuilds.length === 0) {
+        const error = new Error('WPH 대상 길드 API 조회 실패')
+        error.allGuildsUnavailable = true
+        throw error
+      }
+      const apiSeason = getPrimarySeason(wphGuilds)
+      const currentScores = createScoreMap(wphGuilds)
+      const rosterScores = createScoreMap(guilds)
+      const fetchedGuildNames = new Set(wphGuilds.map((guild) => guild.guildName))
+      const fetchedRosterGuildNames = new Set(guilds.map((guild) => guild.guildName))
 
       selectedGuilds.forEach((guildName) => {
         if (!fetchedGuildNames.has(guildName)) {
@@ -1013,9 +1023,9 @@ async function main() {
       }
 
       if (lastRosterKeys.size === 0) {
-        lastRosterKeys = new Set(currentScores.keys())
+        lastRosterKeys = new Set(rosterScores.keys())
       } else {
-        const roster = reconcileRoster(lastRosterKeys, currentScores, fetchedGuildNames)
+        const roster = reconcileRoster(lastRosterKeys, rosterScores, fetchedRosterGuildNames)
         lastRosterKeys = roster.nextKeys
         if (roster.joinedKeys.length > 0) {
           const events = roster.joinedKeys.map((key) => {
@@ -1024,7 +1034,7 @@ async function main() {
               guildName: member.guildName,
               nickname: member.nickname,
               observedAt: new Date(tickStartedAt).toISOString(),
-              score: currentScores.get(key) || 0,
+              score: rosterScores.get(key) || 0,
             }
           })
           events.forEach((event) => pendingRosterEvents.set(`${active.meta.key}:${event.guildName}:${event.nickname}`, event))

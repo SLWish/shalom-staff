@@ -13,6 +13,7 @@ import { fetchLatestGuildSnapshots } from './services/latestSnapshotApi.js'
 import {
   compareAndSaveScoreHistory,
   isNewMemberForDisplay,
+  isReturningMemberForDisplay,
   mergeMembersWithHistory,
   readScoreHistory,
 } from './services/scoreHistory.js'
@@ -795,6 +796,7 @@ function getGuildStaffData(guild, cutScores, wphReport) {
     moveCandidates: getMoveCandidatesForGuild(guild, cutScores, wphReport),
     newMembers: sortByScore(activityMembers.filter(isNewMemberForDisplay)),
     nicknameWarningMembers: sortByScore(activityMembers.filter((member) => !member.nicknameFormatOk)),
+    returningMembers: sortByScore(activityMembers.filter(isReturningMemberForDisplay)),
     seasonNotJoinedMembers: sortInactiveMembers(activityMembers.filter((member) => member.seasonNotJoined)),
     shortageHiddenCount: showShortageMembers ? 0 : allShortageMembers.length,
     shortageMembers: showShortageMembers ? allShortageMembers : [],
@@ -994,19 +996,20 @@ function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName }) 
 
 function NewMembersPage({ guildStats }) {
   const totalNewMembers = guildStats.reduce((sum, entry) => sum + entry.staffData.newMembers.length, 0)
+  const totalReturningMembers = guildStats.reduce((sum, entry) => sum + entry.staffData.returningMembers.length, 0)
   const totalNicknameWarnings = guildStats.reduce((sum, entry) => sum + entry.staffData.nicknameWarningMembers.length, 0)
 
   return (
     <PageShell eyebrow="New Members" title="신규 확인">
       <section className="staff-section">
         <div className="section-title">
-          <span>시즌 중 신규 / 닉네임 양식</span>
+          <span>시즌 중 신규 / 복귀 / 닉네임 양식</span>
           <h2>
-            신규 {totalNewMembers}명 · 닉네임 확인 {totalNicknameWarnings}명
+            신규 {totalNewMembers}명 · 복귀 {totalReturningMembers}명 · 닉네임 확인 {totalNicknameWarnings}명
           </h2>
         </div>
         <p className="page-note">
-          신규 기준은 API 가입 시간이 아니라 앱이 해당 닉네임을 처음 관측한 시각입니다. 시즌 중 신규는 남은 시즌 시간 기준 보정컷을 적용합니다.
+          1~6군 기록이 없으면 신규, 5·6군에서 1~4군으로 이동하거나 같은 군에 다시 들어오면 복귀로 분류합니다. 신규와 복귀는 처음 관측한 시각부터 남은 시즌 기준 보정컷을 적용합니다.
         </p>
       </section>
 
@@ -1015,6 +1018,46 @@ function NewMembersPage({ guildStats }) {
           <div className="section-title">
             <span>{getTierLabel(index)}</span>
             <h2>{guild.guildName}</h2>
+          </div>
+
+          <div className="staff-summary-block">
+            <span>시즌 중 복귀</span>
+            {staffData.returningMembers.length === 0 ? (
+              <p className="summary-empty">복귀 관측 대상 없음</p>
+            ) : (
+              <div className="staff-card-list compact-list">
+                {staffData.returningMembers.map((member) => (
+                  <article className="staff-row-card" key={`${guild.guildName}-returning-${member.nickname}`}>
+                    <div className="member-title-row">
+                      <strong>{member.nickname}</strong>
+                      <span className="status-badge">복귀</span>
+                    </div>
+                    <dl className="mini-fields">
+                      <div>
+                        <dt>이전 소속</dt>
+                        <dd>{member.history.previousGuildName || '확인 불가'}</dd>
+                      </div>
+                      <div>
+                        <dt>현재 점수</dt>
+                        <dd>{formatNumber(member.score)}점</dd>
+                      </div>
+                      <div>
+                        <dt>기본 컷</dt>
+                        <dd>{formatNumber(guild.cutScore)}점</dd>
+                      </div>
+                      <div>
+                        <dt>적용 컷</dt>
+                        <dd>{formatNumber(member.effectiveCutScore)}점</dd>
+                      </div>
+                      <div>
+                        <dt>처음 확인</dt>
+                        <dd>{formatDateTime(member.joinedDuringSeasonAt)}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="staff-summary-block">

@@ -3,8 +3,8 @@
 import { insertRows } from './_shared/supabaseRest.js'
 
 const STORAGE_GUILD_NAME = '__local_roster__'
-const ALLOWED_GUILDS = new Set(['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4'])
-const MAX_EVENT_COUNT = 20
+const ALLOWED_GUILDS = new Set(['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4', 'ShaLom5', 'ShaLom6'])
+const MAX_EVENT_COUNT = 120
 
 function json(statusCode, body) {
   return {
