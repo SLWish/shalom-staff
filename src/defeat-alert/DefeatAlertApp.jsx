@@ -75,6 +75,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [dismissedValue, setDismissedValue] = useState('')
+  const [searchedValue, setSearchedValue] = useState('')
 
   useEffect(() => {
     const query = value.trim()
@@ -91,9 +92,13 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
           signal: controller.signal,
         })
         setSuggestions(result.suggestions || [])
+        setSearchedValue(query)
         setOpen(true)
       } catch (error) {
-        if (error.name !== 'AbortError') setSuggestions([])
+        if (error.name !== 'AbortError') {
+          setSuggestions([])
+          setSearchedValue('')
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -111,6 +116,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
     setSuggestions([])
     setLoading(false)
     setOpen(false)
+    setSearchedValue('')
   }
 
   return <div className="defeat-nickname-field">
@@ -123,6 +129,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
         setSuggestions([])
         setLoading(false)
         setOpen(false)
+        setSearchedValue('')
         onChange(event.target.value)
       }}
       onFocus={() => suggestions.length && setOpen(true)}
@@ -140,6 +147,10 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
         <strong>{suggestion.nickname}</strong>
         <small>{suggestion.guildName}</small>
       </button>)}
+    </div>}
+    {open && !loading && suggestions.length === 0 && searchedValue === value.trim() && <div className="defeat-nickname-unknown">
+      <strong>Unknown User</strong>
+      <small>1~4군 활동 유저만 인식됩니다.</small>
     </div>}
   </div>
 }

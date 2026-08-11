@@ -74,6 +74,9 @@ button { cursor: pointer; }
 .defeat-nickname-suggestions button:last-child { border-bottom: 0; }
 .defeat-nickname-suggestions button:hover, .defeat-nickname-suggestions button:focus { background: #f5f3ff; }
 .defeat-nickname-suggestions small { color: var(--defeat-muted); }
+.defeat-nickname-unknown { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 9px 11px; border-radius: 10px; color: #b42318; background: #fff0ef; }
+.defeat-nickname-unknown strong { font-size: 12px; white-space: nowrap; }
+.defeat-nickname-unknown small { color: #b5473d; font-size: 11px; }
 .defeat-primary-button { width: 100%; min-height: 50px; margin-top: 22px; border: 0; border-radius: 11px; color: #fff; background: var(--defeat-primary); font-weight: 900; }
 .defeat-form-message { margin-top: 14px; }
 .defeat-privacy { display: block; margin-top: 15px; color: var(--defeat-muted); font-size: 11px; line-height: 1.6; }
