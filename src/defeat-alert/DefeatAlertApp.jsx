@@ -59,7 +59,12 @@ function formatDuration(minutes) {
   if (hours >= 24) {
     const days = Math.floor(hours / 24)
     const remainingHours = hours % 24
-    return remainingHours ? `${days}일 ${remainingHours}시간` : `${days}일`
+    const remainingMinutes = minutes % 60
+    return [
+      `${days}일`,
+      remainingHours ? `${remainingHours}시간` : '',
+      remainingMinutes ? `${remainingMinutes}분` : '',
+    ].filter(Boolean).join(' ')
   }
   const rest = minutes % 60
   return rest ? `${hours}시간 ${rest}분` : `${hours}시간`
