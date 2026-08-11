@@ -5,6 +5,11 @@ const GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const ADMIN_STORAGE_KEY = 'shalomDefeatAdminToken'
 const IS_STANDALONE = import.meta.env.VITE_APP_MODE === 'defeat'
 const APP_HOME = IS_STANDALONE ? '/' : '/defeat-alert/'
+const API_BASE = String(import.meta.env.VITE_DEFEAT_API_BASE || '/.netlify/functions').replace(/\/$/, '')
+
+function defeatApiUrl(functionName) {
+  return `${API_BASE}/${functionName}`
+}
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
@@ -71,7 +76,7 @@ function StatusPage() {
   const load = useCallback(async () => {
     try {
       setError('')
-      setData(await requestJson('/.netlify/functions/defeat-status'))
+      setData(await requestJson(defeatApiUrl('defeat-status')))
     } catch (loadError) {
       setError(loadError.message)
     } finally {
@@ -154,7 +159,7 @@ function SubscribePage() {
     setMessage('')
     setError('')
     try {
-      const result = await requestJson('/.netlify/functions/defeat-subscribe', {
+      const result = await requestJson(defeatApiUrl('defeat-subscribe'), {
         body: JSON.stringify({ email, nickname }),
         method: 'POST',
       })
@@ -234,7 +239,7 @@ function ManageApp() {
   const [nickname, setNickname] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const callManage = useCallback(async (payload) => requestJson('/.netlify/functions/defeat-manage', {
+  const callManage = useCallback(async (payload) => requestJson(defeatApiUrl('defeat-manage'), {
     ...(payload ? { body: JSON.stringify(payload), method: 'POST' } : {}),
     headers: { Authorization: `Bearer ${token}` },
   }), [token])
@@ -309,7 +314,7 @@ function AdminApp() {
 
   const load = useCallback(async (adminToken) => {
     try {
-      const result = await requestJson('/.netlify/functions/defeat-admin', { headers: { Authorization: `Bearer ${adminToken}` } })
+      const result = await requestJson(defeatApiUrl('defeat-admin'), { headers: { Authorization: `Bearer ${adminToken}` } })
       window.sessionStorage.setItem(ADMIN_STORAGE_KEY, adminToken)
       setCharacters(result.characters)
       setToken(adminToken)

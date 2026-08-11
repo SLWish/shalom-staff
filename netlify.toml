@@ -13,6 +13,12 @@
   schedule = "* * * * *"
 
 [[redirects]]
+  from = "/defeat-api/*"
+  to = "https://shalom-staff.netlify.app/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/defeat-alert/*"
   to = "/index.html"
   status = 200

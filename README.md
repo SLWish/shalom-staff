@@ -38,7 +38,8 @@ Subscriber email addresses stay in server-only RLS tables. Public and admin APIs
 return nicknames and alert state only.
 
 For a separate Netlify address using the same repository, set
-`VITE_APP_MODE=defeat` so the alert app renders at `/`. Set
-`DEFEAT_MONITOR_ENABLED=false` on that second site to keep the existing staff
-site as the single scheduled collector, and set `DEFEAT_SITE_URL` on both sites
-to the standalone site's public origin.
+`VITE_APP_MODE=defeat`, `VITE_DEFEAT_API_BASE=/defeat-api`, and
+`DEFEAT_MONITOR_ENABLED=false` on the second site. The standalone frontend then
+uses the staff site's API and does not need copies of its Gmail or Supabase
+secrets. Set `DEFEAT_SITE_URL` only on the staff site to the standalone site's
+public origin so email links open the standalone app.

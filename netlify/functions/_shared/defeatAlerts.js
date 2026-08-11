@@ -71,7 +71,7 @@ export function getBearerToken(event) {
 }
 
 export function getSiteUrl(event) {
-  const configured = process.env.DEFEAT_SITE_URL || process.env.URL
+  const configured = process.env.URL
   if (configured) return configured.replace(/\/$/, '')
   const host = event.headers?.['x-forwarded-host'] || event.headers?.host
   const protocol = event.headers?.['x-forwarded-proto'] || 'https'
@@ -84,8 +84,11 @@ export function getDefeatAppUrl(event) {
 }
 
 export function getDefeatServiceUrl(event) {
+  const configured = String(process.env.DEFEAT_SERVICE_URL || '').trim().replace(/\/$/, '')
+  if (configured) return configured
+
   try {
-    return new URL(getDefeatAppUrl(event)).origin
+    return new URL(getSiteUrl(event)).origin
   } catch {
     return getSiteUrl(event)
   }
