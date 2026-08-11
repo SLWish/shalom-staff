@@ -76,6 +76,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
   const [open, setOpen] = useState(false)
   const [dismissedValue, setDismissedValue] = useState('')
   const [searchedValue, setSearchedValue] = useState('')
+  const [searchError, setSearchError] = useState(false)
 
   useEffect(() => {
     const query = value.trim()
@@ -86,6 +87,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       setLoading(true)
+      setSearchError(false)
       try {
         const params = new URLSearchParams({ q: query })
         const result = await requestJson(defeatApiUrlWithQuery('defeat-nickname-search', params), {
@@ -98,6 +100,8 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
         if (error.name !== 'AbortError') {
           setSuggestions([])
           setSearchedValue('')
+          setSearchError(true)
+          setOpen(true)
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -117,6 +121,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
     setLoading(false)
     setOpen(false)
     setSearchedValue('')
+    setSearchError(false)
   }
 
   return <div className="defeat-nickname-field">
@@ -130,6 +135,7 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
         setLoading(false)
         setOpen(false)
         setSearchedValue('')
+        setSearchError(false)
         onChange(event.target.value)
       }}
       onFocus={() => suggestions.length && setOpen(true)}
@@ -148,7 +154,11 @@ function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required 
         <small>{suggestion.guildName}</small>
       </button>)}
     </div>}
-    {open && !loading && suggestions.length === 0 && searchedValue === value.trim() && <div className="defeat-nickname-unknown">
+    {open && !loading && searchError && <div className="defeat-nickname-api-error">
+      <strong>API 불러오기 Error</strong>
+      <small>잠시 후 다시 검색해주세요.</small>
+    </div>}
+    {open && !loading && !searchError && suggestions.length === 0 && searchedValue === value.trim() && <div className="defeat-nickname-unknown">
       <strong>Unknown User</strong>
       <small>1~4군 활동 유저만 인식됩니다.</small>
     </div>}

@@ -77,6 +77,9 @@ button { cursor: pointer; }
 .defeat-nickname-unknown { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 9px 11px; border-radius: 10px; color: #b42318; background: #fff0ef; }
 .defeat-nickname-unknown strong { font-size: 12px; white-space: nowrap; }
 .defeat-nickname-unknown small { color: #b5473d; font-size: 11px; }
+.defeat-nickname-api-error { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 9px 11px; border-radius: 10px; color: #b54708; background: #fffaeb; }
+.defeat-nickname-api-error strong { font-size: 12px; white-space: nowrap; }
+.defeat-nickname-api-error small { color: #b54708; font-size: 11px; }
 .defeat-primary-button { width: 100%; min-height: 50px; margin-top: 22px; border: 0; border-radius: 11px; color: #fff; background: var(--defeat-primary); font-weight: 900; }
 .defeat-form-message { margin-top: 14px; }
 .defeat-privacy { display: block; margin-top: 15px; color: var(--defeat-muted); font-size: 11px; line-height: 1.6; }
