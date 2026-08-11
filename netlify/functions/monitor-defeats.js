@@ -5,8 +5,8 @@ import { sendDefeatEmail } from './_shared/defeatEmail.js'
 import {
   ACTIVE_GUILDS,
   createAccessSignature,
+  getDefeatServiceUrl,
   getInactiveMinutes,
-  getSiteUrl,
   isDefeated,
   json,
   nicknameKey,
@@ -44,7 +44,7 @@ async function updateSubscriptions(statusRows, event, checkedAt) {
   ])
   const subscriberMap = new Map(subscribers.map((subscriber) => [subscriber.id, subscriber]))
   const statusMap = new Map(statusRows.map((status) => [`${status.guild_name}:${status.nickname_key}`, status]))
-  const siteUrl = getSiteUrl(event)
+  const serviceUrl = getDefeatServiceUrl(event)
   const notifications = []
 
   for (const character of characters) {
@@ -75,7 +75,7 @@ async function updateSubscriptions(statusRows, event, checkedAt) {
       try {
         const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000
         const signature = createAccessSignature(subscriber.id, expiresAt)
-        const manageUrl = `${siteUrl}/.netlify/functions/defeat-access?subscriber=${encodeURIComponent(subscriber.id)}&expires=${expiresAt}&signature=${encodeURIComponent(signature)}`
+        const manageUrl = `${serviceUrl}/.netlify/functions/defeat-access?subscriber=${encodeURIComponent(subscriber.id)}&expires=${expiresAt}&signature=${encodeURIComponent(signature)}`
         await sendDefeatEmail({
           email: subscriber.email,
           guildName: status.guild_name,
@@ -99,6 +99,9 @@ async function updateSubscriptions(statusRows, event, checkedAt) {
 
 export async function handler(event) {
   if (!isAuthorized(event)) return json(401, { error: 'Unauthorized' })
+  if (String(process.env.DEFEAT_MONITOR_ENABLED || '').toLowerCase() === 'false') {
+    return json(200, { disabled: true })
+  }
   const checkedAt = new Date().toISOString()
 
   try {

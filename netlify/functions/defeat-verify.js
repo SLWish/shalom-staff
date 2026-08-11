@@ -1,4 +1,4 @@
-import { getSiteUrl, nicknameKey, sha256 } from './_shared/defeatAlerts.js'
+import { getDefeatAppUrl, nicknameKey, sha256 } from './_shared/defeatAlerts.js'
 import { deleteRows, insertRows, selectRows, updateRows, upsertRows } from './_shared/supabaseRest.js'
 
 function redirect(location) {
@@ -6,17 +6,17 @@ function redirect(location) {
 }
 
 export async function handler(event) {
-  const siteUrl = getSiteUrl(event)
+  const appUrl = getDefeatAppUrl(event)
   const token = event.queryStringParameters?.token || ''
   const manageToken = event.queryStringParameters?.manage || ''
-  if (!token || !manageToken) return redirect(`${siteUrl}/defeat-alert/?verification=invalid`)
+  if (!token || !manageToken) return redirect(`${appUrl}/?verification=invalid`)
 
   try {
     const now = new Date().toISOString()
     const [pending] = await selectRows(
       `defeat_pending_registrations?select=*&verification_token_hash=eq.${sha256(token)}&manage_token_hash=eq.${sha256(manageToken)}&expires_at=gt.${encodeURIComponent(now)}&limit=1`,
     )
-    if (!pending) return redirect(`${siteUrl}/defeat-alert/?verification=invalid`)
+    if (!pending) return redirect(`${appUrl}/?verification=invalid`)
 
     const [existing] = await selectRows(
       `defeat_subscribers?select=id&email_hash=eq.${pending.email_hash}&limit=1`,
@@ -50,9 +50,9 @@ export async function handler(event) {
     }], 'subscriber_id,nickname_key')
 
     await deleteRows(`defeat_pending_registrations?id=eq.${pending.id}`)
-    return redirect(`${siteUrl}/defeat-alert/manage?token=${encodeURIComponent(manageToken)}&verified=1`)
+    return redirect(`${appUrl}/manage?token=${encodeURIComponent(manageToken)}&verified=1`)
   } catch (error) {
     console.error('[defeat-verify]', error)
-    return redirect(`${siteUrl}/defeat-alert/?verification=error`)
+    return redirect(`${appUrl}/?verification=error`)
   }
 }

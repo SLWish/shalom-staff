@@ -36,3 +36,9 @@ Deployment setup:
 
 Subscriber email addresses stay in server-only RLS tables. Public and admin APIs
 return nicknames and alert state only.
+
+For a separate Netlify address using the same repository, set
+`VITE_APP_MODE=defeat` so the alert app renders at `/`. Set
+`DEFEAT_MONITOR_ENABLED=false` on that second site to keep the existing staff
+site as the single scheduled collector, and set `DEFEAT_SITE_URL` on both sites
+to the standalone site's public origin.

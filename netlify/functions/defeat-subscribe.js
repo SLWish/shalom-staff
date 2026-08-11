@@ -2,7 +2,7 @@ import { sendVerificationEmail } from './_shared/defeatEmail.js'
 import {
   createToken,
   findGuildCharacter,
-  getSiteUrl,
+  getDefeatServiceUrl,
   isValidEmail,
   json,
   nicknameKey,
@@ -61,8 +61,8 @@ export async function handler(event) {
       verification_token_hash: sha256(verificationToken),
     }])
 
-    const siteUrl = getSiteUrl(event)
-    const verificationUrl = `${siteUrl}/.netlify/functions/defeat-verify?token=${encodeURIComponent(verificationToken)}&manage=${encodeURIComponent(manageToken)}`
+    const serviceUrl = getDefeatServiceUrl(event)
+    const verificationUrl = `${serviceUrl}/.netlify/functions/defeat-verify?token=${encodeURIComponent(verificationToken)}&manage=${encodeURIComponent(manageToken)}`
 
     try {
       await sendVerificationEmail({

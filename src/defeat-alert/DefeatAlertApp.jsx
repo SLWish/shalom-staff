@@ -3,6 +3,8 @@ import './defeatAlert.css'
 
 const GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const ADMIN_STORAGE_KEY = 'shalomDefeatAdminToken'
+const IS_STANDALONE = import.meta.env.VITE_APP_MODE === 'defeat'
+const APP_HOME = IS_STANDALONE ? '/' : '/defeat-alert/'
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
@@ -48,7 +50,7 @@ function AppFrame({ children, compact = false }) {
   return (
     <div className="defeat-app">
       <header className="defeat-header">
-        <a className="defeat-brand" href="/defeat-alert/" aria-label="디핏 알림 홈">
+        <a className="defeat-brand" href={APP_HOME} aria-label="디핏 알림 홈">
           <span className="defeat-brand-mark">S</span>
           <span><strong>ShaLom</strong><small>Defeat Watch</small></span>
         </a>
@@ -251,7 +253,7 @@ function ManageApp() {
     try {
       const result = await callManage(payload)
       if (result.deleted) {
-        window.location.replace('/defeat-alert/?deleted=1')
+        window.location.replace(`${APP_HOME}?deleted=1`)
         return
       }
       setState(result)
@@ -271,7 +273,7 @@ function ManageApp() {
   return (
     <AppFrame compact>
       <section className="defeat-page defeat-manage-page">
-        <a className="defeat-back-link" href="/defeat-alert/">← 전체 현황으로</a>
+        <a className="defeat-back-link" href={APP_HOME}>← 전체 현황으로</a>
         <div className="defeat-hero"><div><p className="defeat-eyebrow">PRIVATE PAGE</p><h1>내 알림 관리</h1><p>이 링크를 가진 사람만 설정을 변경할 수 있어요.</p></div></div>
         {(error || !token) && <div className="defeat-banner error">{error || '관리 토큰이 없습니다.'}</div>}
         {!state && !error && <div className="defeat-loading">설정을 불러오는 중…</div>}
@@ -328,7 +330,7 @@ function AdminApp() {
   return (
     <AppFrame compact>
       <section className="defeat-page defeat-manage-page">
-        <a className="defeat-back-link" href="/defeat-alert/">← 전체 현황으로</a>
+        <a className="defeat-back-link" href={APP_HOME}>← 전체 현황으로</a>
         <div className="defeat-hero"><div><p className="defeat-eyebrow">ADMIN ONLY</p><h1>알림 등록 현황</h1><p>이메일 주소는 이 화면과 API 응답에 포함되지 않습니다.</p></div></div>
         {!characters && <form className="defeat-admin-login" onSubmit={(event) => { event.preventDefault(); load(input) }}><label><span>관리자 보안 키</span><input type="password" value={input} onChange={(event) => setInput(event.target.value)} required /></label><button type="submit">확인</button></form>}
         {error && <div className="defeat-banner error">{error}</div>}

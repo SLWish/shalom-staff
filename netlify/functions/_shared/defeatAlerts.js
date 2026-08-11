@@ -78,6 +78,19 @@ export function getSiteUrl(event) {
   return host ? `${protocol}://${host}` : 'http://localhost:8888'
 }
 
+export function getDefeatAppUrl(event) {
+  const configured = String(process.env.DEFEAT_SITE_URL || '').trim().replace(/\/$/, '')
+  return configured || `${getSiteUrl(event)}/defeat-alert`
+}
+
+export function getDefeatServiceUrl(event) {
+  try {
+    return new URL(getDefeatAppUrl(event)).origin
+  } catch {
+    return getSiteUrl(event)
+  }
+}
+
 export async function findGuildCharacter(nickname) {
   const targetKey = nicknameKey(nickname)
   if (!targetKey) return { matches: [] }
