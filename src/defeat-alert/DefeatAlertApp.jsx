@@ -49,25 +49,57 @@ function supportsWebPush() {
   return window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
-async function getBrowserPushSubscription() {
+function withTimeout(promise, milliseconds, message) {
+  let timeoutId
+  const timeout = new Promise((resolve, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), milliseconds)
+  })
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId))
+}
+
+async function getBrowserPushSubscription(onProgress) {
   if (!supportsWebPush()) {
     throw new Error('이 브라우저는 웹 푸시를 지원하지 않습니다. iPhone은 사이트를 홈 화면에 추가한 뒤 실행해주세요.')
   }
 
+  onProgress('알림 권한 확인 중…')
   const permission = Notification.permission === 'default'
-    ? await Notification.requestPermission()
+    ? await withTimeout(
+      Notification.requestPermission(),
+      30000,
+      '알림 권한 요청이 응답하지 않습니다. 브라우저의 사이트 설정에서 알림을 직접 허용해주세요.',
+    )
     : Notification.permission
   if (permission !== 'granted') {
     throw new Error('브라우저 설정에서 이 사이트의 알림을 허용해주세요.')
   }
 
-  const { publicKey } = await requestJson(defeatApiUrl('defeat-push-config'))
-  const registration = await navigator.serviceWorker.register('/defeat-sw.js')
-  await navigator.serviceWorker.ready
-  return await registration.pushManager.getSubscription() || registration.pushManager.subscribe({
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-    userVisibleOnly: true,
-  })
+  onProgress('푸시 서버 확인 중…')
+  const { publicKey } = await withTimeout(
+    requestJson(defeatApiUrl('defeat-push-config')),
+    15000,
+    '푸시 서버 연결 시간이 초과됐습니다.',
+  )
+  onProgress('브라우저 연결 중…')
+  const registration = await withTimeout(
+    navigator.serviceWorker.register('/defeat-sw.js'),
+    15000,
+    '브라우저 알림 서비스를 시작하지 못했습니다.',
+  )
+  const existing = await withTimeout(
+    registration.pushManager.getSubscription(),
+    15000,
+    '기존 푸시 구독을 확인하지 못했습니다.',
+  )
+  if (existing) return existing
+
+  return withTimeout(registration.pushManager.subscribe({
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      userVisibleOnly: true,
+    }),
+    30000,
+    '푸시 구독 시간이 초과됐습니다. 브라우저 알림 권한과 절전 설정을 확인해주세요.',
+  )
 }
 
 function formatDateTime(value) {
@@ -304,6 +336,7 @@ function SubscribePage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
 
   const callManage = useCallback(async (manageToken, payload) => requestJson(defeatApiUrl('defeat-push-manage'), {
     ...(payload ? { body: JSON.stringify(payload), method: 'POST' } : {}),
@@ -330,18 +363,20 @@ function SubscribePage() {
   const submit = async (event) => {
     event.preventDefault()
     setBusy(true)
+    setProgress('알림 연결 준비 중…')
     setMessage('')
     setError('')
     try {
-      const subscription = await getBrowserPushSubscription()
-      const result = await requestJson(defeatApiUrl('defeat-push-subscribe'), {
+      const subscription = await getBrowserPushSubscription(setProgress)
+      setProgress('닉네임 등록 중…')
+      const result = await withTimeout(requestJson(defeatApiUrl('defeat-push-subscribe'), {
         body: JSON.stringify({
           manageToken: token,
           nickname,
           subscription: subscription.toJSON(),
         }),
         method: 'POST',
-      })
+      }), 30000, '등록 서버의 응답 시간이 초과됐습니다.')
       window.localStorage.setItem(PUSH_TOKEN_STORAGE_KEY, result.manageToken)
       setToken(result.manageToken)
       setDeviceState(await callManage(result.manageToken))
@@ -351,6 +386,7 @@ function SubscribePage() {
       setError(submitError.message)
     } finally {
       setBusy(false)
+      setProgress('')
     }
   }
 
@@ -414,7 +450,7 @@ function SubscribePage() {
             <NicknameAutocomplete value={nickname} onChange={setNickname} placeholder="두 글자 이상 입력" required />
           </label>
           <button className="defeat-primary-button" type="submit" disabled={busy}>
-            {busy ? '알림 연결 중…' : deviceState ? '캐릭터 추가 등록' : '이 기기에서 알림 받기'}
+            {busy ? progress || '처리 중…' : deviceState ? '캐릭터 추가 등록' : '이 기기에서 알림 받기'}
           </button>
           {message && <div className="defeat-form-message success">{message}</div>}
           {error && <div className="defeat-form-message error">{error}</div>}
