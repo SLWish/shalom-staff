@@ -359,7 +359,7 @@ function SubscribePage() {
 
   useEffect(() => {
     if (!token) return undefined
-    const timer = window.setTimeout(() => {
+    const loadDeviceState = () => {
       callManage(token)
         .then(setDeviceState)
         .catch((loadError) => {
@@ -370,8 +370,13 @@ function SubscribePage() {
             setError(loadError.message)
           }
         })
-    }, 0)
-    return () => window.clearTimeout(timer)
+    }
+    const timer = window.setTimeout(loadDeviceState, 0)
+    const refreshTimer = window.setInterval(loadDeviceState, 60000)
+    return () => {
+      window.clearTimeout(timer)
+      window.clearInterval(refreshTimer)
+    }
   }, [callManage, token])
 
   const submit = async (event) => {
