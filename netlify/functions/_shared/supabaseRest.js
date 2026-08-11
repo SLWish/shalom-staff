@@ -66,3 +66,10 @@ export function deleteRows(path) {
     method: 'DELETE',
   })
 }
+
+export function updateRows(path, values) {
+  return request(path, {
+    body: JSON.stringify(values),
+    method: 'PATCH',
+  })
+}

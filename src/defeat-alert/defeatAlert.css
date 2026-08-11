@@ -1,0 +1,126 @@
+:root {
+  --defeat-bg: #f5f7fb;
+  --defeat-card: #ffffff;
+  --defeat-ink: #151923;
+  --defeat-muted: #687083;
+  --defeat-line: #e4e8f0;
+  --defeat-primary: #6558e8;
+  --defeat-danger: #e04444;
+  --defeat-success: #21a36b;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.defeat-app { min-height: 100vh; color: var(--defeat-ink); background: radial-gradient(circle at 12% 0%, #ebe8ff 0, transparent 28rem), var(--defeat-bg); font-family: Pretendard, "Noto Sans KR", system-ui, sans-serif; }
+.defeat-header { height: 74px; padding: 0 max(22px, calc((100vw - 1180px) / 2)); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(214, 219, 230, .85); background: rgba(255, 255, 255, .78); backdrop-filter: blur(16px); }
+.defeat-brand { display: inline-flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; }
+.defeat-brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 13px; color: #fff; font-size: 21px; font-weight: 900; background: linear-gradient(145deg, #7868ff, #4c3dd2); box-shadow: 0 8px 22px rgba(101, 88, 232, .28); }
+.defeat-brand > span:last-child { display: flex; flex-direction: column; line-height: 1.05; }
+.defeat-brand strong { font-size: 17px; letter-spacing: -.02em; }
+.defeat-brand small { margin-top: 4px; color: var(--defeat-muted); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.defeat-live-label { display: flex; align-items: center; gap: 8px; color: var(--defeat-muted); font-size: 13px; font-weight: 700; }
+.defeat-live-label i, .defeat-source i { width: 8px; height: 8px; border-radius: 50%; background: var(--defeat-success); box-shadow: 0 0 0 5px rgba(33, 163, 107, .1); }
+.defeat-tabs { width: min(1180px, calc(100% - 36px)); margin: 20px auto 0; padding: 5px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border: 1px solid var(--defeat-line); border-radius: 15px; background: rgba(255, 255, 255, .72); }
+.defeat-tabs button { min-height: 44px; border: 0; border-radius: 11px; color: var(--defeat-muted); background: transparent; font-weight: 800; }
+.defeat-tabs button.active { color: #fff; background: var(--defeat-primary); box-shadow: 0 5px 16px rgba(101, 88, 232, .23); }
+.defeat-page { width: min(1180px, calc(100% - 36px)); margin: 0 auto; padding: 46px 0 70px; }
+.defeat-hero { display: flex; justify-content: space-between; gap: 28px; align-items: flex-end; margin-bottom: 26px; }
+.defeat-eyebrow { margin: 0 0 10px !important; color: var(--defeat-primary) !important; font-size: 11px !important; font-weight: 900; letter-spacing: .18em; }
+.defeat-hero h1 { margin: 0; font-size: clamp(31px, 4vw, 46px); line-height: 1.12; letter-spacing: -.045em; }
+.defeat-hero p { margin: 12px 0 0; color: var(--defeat-muted); font-size: 15px; }
+.defeat-source { flex: none; display: flex; align-items: center; gap: 9px; padding: 10px 14px; border: 1px solid var(--defeat-line); border-radius: 999px; background: #fff; color: var(--defeat-muted); font-size: 13px; font-weight: 800; }
+.defeat-source.partial i { background: #f0a429; box-shadow: 0 0 0 5px rgba(240, 164, 41, .12); }
+.defeat-source.down i, .defeat-source.idle i { background: var(--defeat-danger); box-shadow: 0 0 0 5px rgba(224, 68, 68, .1); }
+.defeat-meta-row { min-height: 40px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; color: var(--defeat-muted); font-size: 13px; }
+.defeat-meta-row button, .defeat-admin-summary button { padding: 8px 12px; border: 1px solid var(--defeat-line); border-radius: 9px; color: var(--defeat-ink); background: #fff; font-weight: 700; }
+.defeat-banner, .defeat-top-message, .defeat-form-message { padding: 13px 15px; border-radius: 11px; font-size: 14px; }
+.defeat-banner { margin-bottom: 14px; }
+.defeat-banner.warning { color: #805400; background: #fff2cb; }
+.defeat-banner.error, .defeat-form-message.error { color: #a42323; background: #ffe8e8; }
+.defeat-form-message.success { color: #14774c; background: #e4f7ee; }
+.defeat-top-message { width: min(1180px, calc(100% - 36px)); margin: 18px auto 0; color: #8b5110; background: #fff2d5; }
+.defeat-guild-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+.defeat-guild-card { min-height: 260px; overflow: hidden; border: 1px solid var(--defeat-line); border-radius: 20px; background: rgba(255, 255, 255, .9); box-shadow: 0 14px 40px rgba(38, 46, 65, .055); }
+.defeat-guild-card > header { padding: 20px; display: flex; align-items: center; gap: 13px; border-bottom: 1px solid var(--defeat-line); }
+.defeat-guild-number { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: var(--defeat-primary); background: #eeecff; font-weight: 900; }
+.defeat-guild-card h2, .defeat-guild-card p { margin: 0; }
+.defeat-guild-card h2 { font-size: 17px; }
+.defeat-guild-card header p { margin-top: 3px; color: var(--defeat-muted); font-size: 12px; }
+.defeat-member-list { padding: 9px 14px 14px; }
+.defeat-member { padding: 12px 7px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #edf0f5; }
+.defeat-member:last-child { border-bottom: 0; }
+.defeat-member > div { display: flex; flex-direction: column; gap: 3px; }
+.defeat-member strong { font-size: 14px; }
+.defeat-member small { color: var(--defeat-muted); font-size: 11px; }
+.defeat-member > span { padding: 6px 9px; border-radius: 8px; color: #b32929; background: #ffeded; font-size: 12px; font-weight: 800; }
+.defeat-empty { min-height: 165px; display: grid; place-content: center; justify-items: center; color: var(--defeat-muted); }
+.defeat-empty span { width: 35px; height: 35px; display: grid; place-items: center; border-radius: 50%; color: var(--defeat-success); background: #e4f7ee; font-weight: 900; }
+.defeat-empty p { margin-top: 10px; font-size: 13px; }
+.defeat-settings-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 18px; align-items: start; }
+.defeat-form-card, .defeat-how-card, .defeat-account-toggle, .defeat-character-card, .defeat-add-character, .defeat-admin-login, .defeat-admin-list { border: 1px solid var(--defeat-line); border-radius: 20px; background: rgba(255, 255, 255, .92); box-shadow: 0 14px 40px rgba(38, 46, 65, .05); }
+.defeat-form-card, .defeat-how-card { padding: 28px; }
+.defeat-form-card h2, .defeat-how-card h2 { margin: 0; font-size: 20px; }
+.defeat-form-card > p, .defeat-how-card > p { margin: 8px 0 24px; color: var(--defeat-muted); font-size: 13px; line-height: 1.65; }
+.defeat-form-card label, .defeat-admin-login label { display: flex; flex-direction: column; gap: 8px; margin-top: 17px; }
+.defeat-form-card label span, .defeat-admin-login label span { font-size: 13px; font-weight: 800; }
+.defeat-form-card input, .defeat-add-character input, .defeat-admin-login input { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #dce1ea; border-radius: 11px; outline: none; color: var(--defeat-ink); background: #fff; }
+.defeat-form-card input:focus, .defeat-add-character input:focus, .defeat-admin-login input:focus { border-color: var(--defeat-primary); box-shadow: 0 0 0 4px rgba(101, 88, 232, .1); }
+.defeat-primary-button { width: 100%; min-height: 50px; margin-top: 22px; border: 0; border-radius: 11px; color: #fff; background: var(--defeat-primary); font-weight: 900; }
+.defeat-form-message { margin-top: 14px; }
+.defeat-privacy { display: block; margin-top: 15px; color: var(--defeat-muted); font-size: 11px; line-height: 1.6; }
+.defeat-how-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 14px; color: #fff; background: var(--defeat-ink); font-size: 22px; }
+.defeat-how-card ol { margin: 0; padding-left: 20px; color: var(--defeat-muted); font-size: 13px; line-height: 2; }
+.defeat-footer { padding: 24px; border-top: 1px solid var(--defeat-line); color: var(--defeat-muted); text-align: center; font-size: 11px; }
+.defeat-manage-page { max-width: 880px; }
+.defeat-back-link { display: inline-block; margin-bottom: 28px; color: var(--defeat-muted); text-decoration: none; font-size: 13px; font-weight: 700; }
+.defeat-account-toggle { padding: 19px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.defeat-account-toggle > div, .defeat-add-character > div { display: flex; flex-direction: column; gap: 5px; }
+.defeat-account-toggle small, .defeat-add-character small { color: var(--defeat-muted); font-size: 12px; }
+.defeat-account-toggle button { min-width: 72px; padding: 9px 13px; border: 0; border-radius: 999px; color: #7c8495; background: #e9ecf2; font-weight: 800; }
+.defeat-account-toggle button.on { color: #fff; background: var(--defeat-success); }
+.defeat-character-stack { display: grid; gap: 12px; margin-top: 16px; }
+.defeat-character-card { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.defeat-character-main { display: flex; align-items: center; gap: 13px; }
+.defeat-character-main > span { width: 48px; padding: 6px 0; border-radius: 8px; color: var(--defeat-success); background: #e7f7ef; text-align: center; font-size: 10px; font-weight: 900; }
+.defeat-character-main > span.danger { color: #b32929; background: #ffeded; }
+.defeat-character-main h2, .defeat-character-main p { margin: 0; }
+.defeat-character-main h2 { font-size: 16px; }
+.defeat-character-main p { margin-top: 4px; color: var(--defeat-muted); font-size: 11px; }
+.defeat-character-actions { display: flex; gap: 7px; }
+.defeat-character-actions button { padding: 8px 11px; border: 1px solid var(--defeat-line); border-radius: 9px; background: #fff; font-size: 12px; font-weight: 700; }
+.defeat-character-actions button.danger { color: var(--defeat-danger); }
+.defeat-add-character { margin-top: 16px; padding: 18px 20px; display: grid; grid-template-columns: 1fr minmax(190px, .75fr) auto; align-items: center; gap: 12px; }
+.defeat-add-character button, .defeat-admin-login button { min-height: 45px; padding: 0 18px; border: 0; border-radius: 10px; color: #fff; background: var(--defeat-primary); font-weight: 800; }
+.defeat-delete-account { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--defeat-line); text-align: right; }
+.defeat-delete-account button { padding: 9px 11px; border: 0; color: var(--defeat-danger); background: transparent; font-size: 12px; }
+.defeat-loading { padding: 50px; color: var(--defeat-muted); text-align: center; }
+.defeat-admin-login { max-width: 450px; padding: 24px; }
+.defeat-admin-login button { width: 100%; margin-top: 18px; }
+.defeat-admin-list { overflow: hidden; }
+.defeat-admin-summary, .defeat-admin-list article { padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--defeat-line); }
+.defeat-admin-list article:last-child { border-bottom: 0; }
+.defeat-admin-list article > div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.defeat-admin-list small { color: var(--defeat-muted); font-size: 11px; }
+.defeat-admin-badges { display: flex; gap: 6px; }
+.defeat-admin-badges span { padding: 5px 8px; border-radius: 7px; font-size: 10px; font-weight: 800; }
+.defeat-admin-badges .on { color: #13764a; background: #e4f7ee; }
+.defeat-admin-badges .off { color: #697082; background: #eceff4; }
+.defeat-admin-badges .danger { color: #b32929; background: #ffeded; }
+
+@media (max-width: 720px) {
+  .defeat-header { height: 66px; padding: 0 18px; }
+  .defeat-live-label { display: none; }
+  .defeat-tabs, .defeat-page, .defeat-top-message { width: min(100% - 24px, 1180px); }
+  .defeat-page { padding: 34px 0 54px; }
+  .defeat-hero { align-items: flex-start; flex-direction: column; }
+  .defeat-hero h1 { font-size: 31px; }
+  .defeat-guild-grid, .defeat-settings-layout { grid-template-columns: 1fr; }
+  .defeat-guild-card { min-height: 220px; }
+  .defeat-character-card { align-items: flex-start; flex-direction: column; }
+  .defeat-character-actions { width: 100%; }
+  .defeat-character-actions button { flex: 1; }
+  .defeat-add-character { grid-template-columns: 1fr; }
+  .defeat-admin-list article { align-items: flex-start; flex-direction: column; }
+}

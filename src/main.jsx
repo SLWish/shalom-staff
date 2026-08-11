@@ -2,9 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import DefeatAlertApp from './defeat-alert/DefeatAlertApp.jsx'
+
+const isDefeatAlertApp = window.location.pathname.startsWith('/defeat-alert')
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    {isDefeatAlertApp ? <DefeatAlertApp /> : <App />}
   </StrictMode>,
 )

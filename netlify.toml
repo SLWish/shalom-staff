@@ -8,3 +8,11 @@
 
 [functions."collect-on-roster-change"]
   schedule = "*/5 * * * *"
+
+[functions."monitor-defeats"]
+  schedule = "* * * * *"
+
+[[redirects]]
+  from = "/defeat-alert/*"
+  to = "/index.html"
+  status = 200
