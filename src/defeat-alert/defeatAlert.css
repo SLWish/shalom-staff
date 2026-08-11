@@ -105,6 +105,7 @@ button { cursor: pointer; }
 .defeat-character-main { display: flex; align-items: center; gap: 13px; }
 .defeat-character-main > span { width: 48px; padding: 6px 0; border-radius: 8px; color: var(--defeat-success); background: #e7f7ef; text-align: center; font-size: 10px; font-weight: 900; }
 .defeat-character-main > span.danger { color: #b32929; background: #ffeded; }
+.defeat-character-main > span.paused { color: #805400; background: #fff2cb; }
 .defeat-character-main h2, .defeat-character-main p { margin: 0; }
 .defeat-character-main h2 { font-size: 16px; }
 .defeat-character-main p { margin-top: 4px; color: var(--defeat-muted); font-size: 11px; }

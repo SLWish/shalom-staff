@@ -506,9 +506,9 @@ function SubscribePage() {
         </div>
         <div className="defeat-character-stack">
           {deviceState.characters.map((character) => <article className="defeat-character-card" key={character.id}>
-            <div className="defeat-character-main"><span className={character.isDefeated ? 'danger' : ''}>{character.isDefeated ? 'DEFEAT' : 'ON'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
+            <div className="defeat-character-main"><span className={!character.alertsEnabled ? 'paused' : character.isDefeated ? 'danger' : ''}>{!character.alertsEnabled ? 'PAUSE' : character.isDefeated ? 'DEFEAT' : 'ON'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
             <div className="defeat-character-actions">
-              <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">알림 {character.alertsEnabled ? '끄기' : '켜기'}</button>
+              <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">{character.alertsEnabled ? '일시중지' : '다시 켜기'}</button>
               <button className="danger" disabled={busy} onClick={() => window.confirm(`${character.nickname}을(를) 삭제할까요?`) && runAction({ action: 'delete-character', characterId: character.id })} type="button">삭제</button>
             </div>
           </article>)}
@@ -596,9 +596,9 @@ function ManageApp() {
           <div className="defeat-character-stack">
             {state.characters.map((character) => (
               <article className="defeat-character-card" key={character.id}>
-                <div className="defeat-character-main"><span className={character.isDefeated ? 'danger' : ''}>{character.isDefeated ? 'DEFEAT' : 'ON'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
+                <div className="defeat-character-main"><span className={!character.alertsEnabled ? 'paused' : character.isDefeated ? 'danger' : ''}>{!character.alertsEnabled ? 'PAUSE' : character.isDefeated ? 'DEFEAT' : 'ON'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
                 <div className="defeat-character-actions">
-                  <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">알림 {character.alertsEnabled ? '끄기' : '켜기'}</button>
+                  <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">{character.alertsEnabled ? '일시중지' : '다시 켜기'}</button>
                   <button className="danger" disabled={busy} onClick={() => window.confirm(`${character.nickname}을(를) 삭제할까요?`) && runAction({ action: 'delete-character', characterId: character.id })} type="button">삭제</button>
                 </div>
               </article>
