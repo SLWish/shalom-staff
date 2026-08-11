@@ -1,11 +1,9 @@
 /* global process */
 
 import { fetchGuildSeason } from './_shared/growCastle.js'
-import { sendDefeatEmail } from './_shared/defeatEmail.js'
+import { isExpiredPushError, sendDefeatPush } from './_shared/defeatPush.js'
 import {
   ACTIVE_GUILDS,
-  createAccessSignature,
-  getDefeatServiceUrl,
   getInactiveMinutes,
   isDefeated,
   json,
@@ -37,14 +35,14 @@ async function saveMonitorState({ errorMessage, lastSuccessAt, sourceStatus }, c
   }], 'id')
 }
 
-async function updateSubscriptions(statusRows, event, checkedAt) {
-  const [characters, subscribers] = await Promise.all([
-    selectRows('defeat_characters?select=*'),
-    selectRows('defeat_subscribers?select=id,email,alerts_enabled'),
+async function updatePushSubscriptions(statusRows, event, checkedAt) {
+  const [characters, subscriptions] = await Promise.all([
+    selectRows('defeat_push_characters?select=*'),
+    selectRows('defeat_push_subscriptions?select=id,endpoint,p256dh_key,auth_key,expiration_time,alerts_enabled'),
   ])
-  const subscriberMap = new Map(subscribers.map((subscriber) => [subscriber.id, subscriber]))
+  const subscriptionMap = new Map(subscriptions.map((subscription) => [subscription.id, subscription]))
   const statusMap = new Map(statusRows.map((status) => [`${status.guild_name}:${status.nickname_key}`, status]))
-  const serviceUrl = getDefeatServiceUrl(event)
+  const appUrl = String(process.env.DEFEAT_SITE_URL || 'https://shalom-defeat.netlify.app').replace(/\/$/, '')
   const notifications = []
 
   for (const character of characters) {
@@ -63,31 +61,35 @@ async function updateSubscriptions(statusRows, event, checkedAt) {
       updated_at: checkedAt,
     }
 
-    const subscriber = subscriberMap.get(character.subscriber_id)
+    const subscription = subscriptionMap.get(character.subscription_id)
     const shouldNotify = Boolean(
       status.is_defeated &&
       character.alerts_enabled &&
-      subscriber?.alerts_enabled &&
+      subscription?.alerts_enabled &&
       !sameInstant(character.notified_for_api_date, status.api_date),
     )
 
     if (shouldNotify) {
       try {
-        const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000
-        const signature = createAccessSignature(subscriber.id, expiresAt)
-        const manageUrl = `${serviceUrl}/.netlify/functions/defeat-access?subscriber=${encodeURIComponent(subscriber.id)}&expires=${expiresAt}&signature=${encodeURIComponent(signature)}`
-        await sendDefeatEmail({
-          email: subscriber.email,
-          guildName: status.guild_name,
-          inactiveMinutes: status.inactive_minutes,
-          manageUrl,
-          nickname: status.nickname,
+        await sendDefeatPush(subscription, {
+          body: `${status.guild_name} · 웨이브 진행이 ${status.inactive_minutes}분 이상 멈췄어요.`,
+          data: {
+            characterId: character.id,
+            url: appUrl,
+          },
+          icon: '/favicon.svg',
+          tag: `defeat-${character.id}-${new Date(status.api_date).getTime()}`,
+          title: `디핏 감지 · ${status.nickname}`,
         })
         values.last_notified_at = checkedAt
         values.notified_for_api_date = status.api_date
         notifications.push({ guildName: status.guild_name, nickname: status.nickname })
       } catch (error) {
-        console.error(`[monitor-defeats] email failed for ${character.id}`, error)
+        if (isExpiredPushError(error) && subscription?.id) {
+          await deleteRows(`defeat_push_subscriptions?id=eq.${subscription.id}`)
+          continue
+        }
+        console.error(`[monitor-defeats] push failed for ${character.id}`, error)
       }
     }
 
@@ -152,7 +154,12 @@ export async function handler(event) {
       sourceStatus,
     }, checkedAt)
 
-    const notifications = await updateSubscriptions(statusRows, event, checkedAt)
+    let notifications = []
+    try {
+      notifications = await updatePushSubscriptions(statusRows, event, checkedAt)
+    } catch (pushError) {
+      console.error('[monitor-defeats] push subscriptions unavailable', pushError)
+    }
     return json(200, {
       checkedAt,
       failedGuilds,

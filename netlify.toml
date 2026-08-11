@@ -12,6 +12,11 @@
 [functions."monitor-defeats"]
   schedule = "* * * * *"
 
+[[headers]]
+  for = "/defeat-sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
 [[redirects]]
   from = "/defeat-api/defeat-status"
   to = "/.netlify/functions/defeat-api-proxy?endpoint=defeat-status"

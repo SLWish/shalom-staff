@@ -3,6 +3,7 @@ import './defeatAlert.css'
 
 const GUILDS = ['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4']
 const ADMIN_STORAGE_KEY = 'shalomDefeatAdminToken'
+const PUSH_TOKEN_STORAGE_KEY = 'shalomDefeatPushManageToken'
 const IS_STANDALONE = import.meta.env.VITE_APP_MODE === 'defeat'
 const APP_HOME = IS_STANDALONE ? '/' : '/defeat-alert/'
 const API_BASE = String(import.meta.env.VITE_DEFEAT_API_BASE || '/.netlify/functions').replace(/\/$/, '')
@@ -29,8 +30,44 @@ async function requestJson(url, options = {}) {
     },
   })
   const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || `요청에 실패했습니다. (${response.status})`)
+  if (!response.ok) {
+    const error = new Error(data.error || `요청에 실패했습니다. (${response.status})`)
+    error.status = response.status
+    throw error
+  }
   return data
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4)
+  const base64 = (value + padding).replaceAll('-', '+').replaceAll('_', '/')
+  const raw = window.atob(base64)
+  return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)))
+}
+
+function supportsWebPush() {
+  return window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+}
+
+async function getBrowserPushSubscription() {
+  if (!supportsWebPush()) {
+    throw new Error('이 브라우저는 웹 푸시를 지원하지 않습니다. iPhone은 사이트를 홈 화면에 추가한 뒤 실행해주세요.')
+  }
+
+  const permission = Notification.permission === 'default'
+    ? await Notification.requestPermission()
+    : Notification.permission
+  if (permission !== 'granted') {
+    throw new Error('브라우저 설정에서 이 사이트의 알림을 허용해주세요.')
+  }
+
+  const { publicKey } = await requestJson(defeatApiUrl('defeat-push-config'))
+  const registration = await navigator.serviceWorker.register('/defeat-sw.js')
+  await navigator.serviceWorker.ready
+  return await registration.pushManager.getSubscription() || registration.pushManager.subscribe({
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+    userVisibleOnly: true,
+  })
 }
 
 function formatDateTime(value) {
@@ -261,28 +298,100 @@ function StatusPage() {
 }
 
 function SubscribePage() {
-  const [email, setEmail] = useState('')
   const [nickname, setNickname] = useState('')
+  const [token, setToken] = useState(() => window.localStorage.getItem(PUSH_TOKEN_STORAGE_KEY) || '')
+  const [deviceState, setDeviceState] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const callManage = useCallback(async (manageToken, payload) => requestJson(defeatApiUrl('defeat-push-manage'), {
+    ...(payload ? { body: JSON.stringify(payload), method: 'POST' } : {}),
+    headers: { Authorization: `Bearer ${manageToken}` },
+  }), [])
+
+  useEffect(() => {
+    if (!token) return undefined
+    const timer = window.setTimeout(() => {
+      callManage(token)
+        .then(setDeviceState)
+        .catch((loadError) => {
+          if (loadError.status === 401) {
+            window.localStorage.removeItem(PUSH_TOKEN_STORAGE_KEY)
+            setToken('')
+          } else {
+            setError(loadError.message)
+          }
+        })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [callManage, token])
 
   const submit = async (event) => {
     event.preventDefault()
-    setSubmitting(true)
+    setBusy(true)
     setMessage('')
     setError('')
     try {
-      const result = await requestJson(defeatApiUrl('defeat-subscribe'), {
-        body: JSON.stringify({ email, nickname }),
+      const subscription = await getBrowserPushSubscription()
+      const result = await requestJson(defeatApiUrl('defeat-push-subscribe'), {
+        body: JSON.stringify({
+          manageToken: token,
+          nickname,
+          subscription: subscription.toJSON(),
+        }),
         method: 'POST',
       })
+      window.localStorage.setItem(PUSH_TOKEN_STORAGE_KEY, result.manageToken)
+      setToken(result.manageToken)
+      setDeviceState(await callManage(result.manageToken))
       setMessage(result.message)
       setNickname('')
     } catch (submitError) {
       setError(submitError.message)
     } finally {
-      setSubmitting(false)
+      setBusy(false)
+    }
+  }
+
+  const runAction = async (payload) => {
+    setBusy(true)
+    setMessage('')
+    setError('')
+    try {
+      const result = await callManage(token, payload)
+      if (result.deleted) {
+        const registration = await navigator.serviceWorker?.getRegistration('/')
+        const subscription = await registration?.pushManager.getSubscription()
+        await subscription?.unsubscribe()
+        window.localStorage.removeItem(PUSH_TOKEN_STORAGE_KEY)
+        setToken('')
+        setDeviceState(null)
+        setMessage('이 기기의 디핏 알림을 삭제했습니다.')
+        return
+      }
+      setDeviceState(result)
+    } catch (actionError) {
+      setError(actionError.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const sendTestPush = async () => {
+    setBusy(true)
+    setMessage('')
+    setError('')
+    try {
+      const result = await requestJson(defeatApiUrl('defeat-push-test'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setMessage(result.message)
+    } catch (testError) {
+      setError(testError.message)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -292,37 +401,53 @@ function SubscribePage() {
         <div>
           <p className="defeat-eyebrow">PERSONAL ALERT</p>
           <h1>디핏 알림 설정</h1>
-          <p>내 캐릭터가 5분 이상 멈추면 이메일로 한 번만 알려드려요.</p>
+          <p>내 캐릭터가 5분 이상 멈추면 이 기기에 푸시 알림을 한 번만 보내드려요.</p>
         </div>
       </div>
 
       <div className="defeat-settings-layout">
         <form className="defeat-form-card" onSubmit={submit}>
           <h2>알림 등록</h2>
-          <p>닉네임은 ShaLom 1~4군에서 자동으로 확인합니다.</p>
+          <p>닉네임을 선택하고 브라우저 알림을 허용하면 바로 등록됩니다.</p>
           <label>
             <span>인게임 닉네임</span>
             <NicknameAutocomplete value={nickname} onChange={setNickname} placeholder="두 글자 이상 입력" required />
           </label>
-          <label>
-            <span>알림받을 이메일</span>
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@gmail.com" autoComplete="email" required />
-          </label>
-          <button className="defeat-primary-button" type="submit" disabled={submitting}>
-            {submitting ? '닉네임 확인 중…' : '확인 메일 받기'}
+          <button className="defeat-primary-button" type="submit" disabled={busy}>
+            {busy ? '알림 연결 중…' : deviceState ? '캐릭터 추가 등록' : '이 기기에서 알림 받기'}
           </button>
           {message && <div className="defeat-form-message success">{message}</div>}
           {error && <div className="defeat-form-message error">{error}</div>}
-          <small className="defeat-privacy">이메일은 알림 발송에만 사용하며 공개 화면과 관리자 목록에 표시하지 않습니다.</small>
+          <small className="defeat-privacy">푸시 구독 정보는 서버에 비공개로 저장되며 관리자 화면에도 표시되지 않습니다.</small>
         </form>
 
         <aside className="defeat-how-card">
-          <span className="defeat-how-icon">↗</span>
-          <h2>부캐도 함께 관리</h2>
-          <p>확인 메일의 개인 관리 링크에서 부캐를 추가하고 캐릭터별로 알림을 켜거나 끌 수 있어요.</p>
-          <ol><li>닉네임과 이메일 입력</li><li>이메일에서 등록 확인</li><li>개인 페이지에서 자유롭게 관리</li></ol>
+          <span className="defeat-how-icon">♢</span>
+          <h2>메일 없이 바로 알림</h2>
+          <p>이 기기에 저장된 보안 정보로만 알림을 관리합니다. 브라우저 데이터를 지우면 다시 등록해야 해요.</p>
+          <ol><li>1~4군 닉네임 선택</li><li>브라우저 알림 허용</li><li>이 화면에서 켜기·끄기·삭제</li></ol>
         </aside>
       </div>
+
+      {deviceState && <div className="defeat-push-manager">
+        <div className="defeat-account-toggle">
+          <div><strong>이 기기 전체 푸시 알림</strong><small>등록된 모든 캐릭터를 한 번에 제어합니다.</small></div>
+          <div className="defeat-push-controls">
+            <button className="test" disabled={busy} onClick={sendTestPush} type="button">테스트</button>
+            <button className={deviceState.alertsEnabled ? 'on' : ''} disabled={busy} onClick={() => runAction({ action: 'toggle-device', enabled: !deviceState.alertsEnabled })} type="button">{deviceState.alertsEnabled ? '켜짐' : '꺼짐'}</button>
+          </div>
+        </div>
+        <div className="defeat-character-stack">
+          {deviceState.characters.map((character) => <article className="defeat-character-card" key={character.id}>
+            <div className="defeat-character-main"><span className={character.isDefeated ? 'danger' : ''}>{character.isDefeated ? 'DEFEAT' : 'OK'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
+            <div className="defeat-character-actions">
+              <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">알림 {character.alertsEnabled ? '끄기' : '켜기'}</button>
+              <button className="danger" disabled={busy} onClick={() => window.confirm(`${character.nickname}을(를) 삭제할까요?`) && runAction({ action: 'delete-character', characterId: character.id })} type="button">삭제</button>
+            </div>
+          </article>)}
+        </div>
+        <div className="defeat-delete-account"><button disabled={busy} onClick={() => window.confirm('이 기기에 등록된 모든 캐릭터와 푸시 알림을 삭제할까요?') && runAction({ action: 'delete-device' })} type="button">이 기기 알림 전체 삭제</button></div>
+      </div>}
     </section>
   )
 }
@@ -450,7 +575,7 @@ function AdminApp() {
     <AppFrame compact>
       <section className="defeat-page defeat-manage-page">
         <a className="defeat-back-link" href={APP_HOME}>← 전체 현황으로</a>
-        <div className="defeat-hero"><div><p className="defeat-eyebrow">ADMIN ONLY</p><h1>알림 등록 현황</h1><p>이메일 주소는 이 화면과 API 응답에 포함되지 않습니다.</p></div></div>
+        <div className="defeat-hero"><div><p className="defeat-eyebrow">ADMIN ONLY</p><h1>알림 등록 현황</h1><p>기기의 푸시 구독 주소는 이 화면과 API 응답에 포함되지 않습니다.</p></div></div>
         {!characters && <form className="defeat-admin-login" onSubmit={(event) => { event.preventDefault(); load(input) }}><label><span>관리자 보안 키</span><input type="password" value={input} onChange={(event) => setInput(event.target.value)} required /></label><button type="submit">확인</button></form>}
         {error && <div className="defeat-banner error">{error}</div>}
         {characters && <div className="defeat-admin-list"><div className="defeat-admin-summary"><strong>등록 캐릭터 {characters.length}명</strong><button type="button" onClick={() => load(token)}>새로고침</button></div>{characters.map((character) => <article key={character.id}><div><strong>{character.nickname}</strong><small>{character.guildName} · 등록 {formatDateTime(character.createdAt)}</small></div><div className="defeat-admin-badges"><span className={character.accountAlertsEnabled && character.alertsEnabled ? 'on' : 'off'}>{character.accountAlertsEnabled && character.alertsEnabled ? '알림 켜짐' : '알림 꺼짐'}</span>{character.isDefeated && <span className="danger">디핏</span>}</div></article>)}</div>}

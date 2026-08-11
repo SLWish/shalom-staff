@@ -5,6 +5,10 @@ const ALLOWED_ENDPOINTS = new Set([
   'defeat-admin',
   'defeat-manage',
   'defeat-nickname-search',
+  'defeat-push-config',
+  'defeat-push-manage',
+  'defeat-push-subscribe',
+  'defeat-push-test',
   'defeat-status',
   'defeat-subscribe',
 ])

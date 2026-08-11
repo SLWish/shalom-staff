@@ -9,6 +9,7 @@ import {
   nicknameKey,
   normalizeEmail,
 } from '../netlify/functions/_shared/defeatAlerts.js'
+import { normalizePushSubscription } from '../netlify/functions/_shared/defeatPush.js'
 
 test('normalizes subscriber identifiers', () => {
   assert.equal(normalizeEmail('  USER@Gmail.com '), 'user@gmail.com')
@@ -35,4 +36,19 @@ test('signs email management access without exposing the manage token', () => {
   assert.equal(isValidAccessSignature('subscriber-id', expiresAt, signature), true)
   assert.equal(isValidAccessSignature('another-id', expiresAt, signature), false)
   assert.equal(isValidAccessSignature('subscriber-id', Date.now() - 1, signature), false)
+})
+
+test('accepts only complete HTTPS browser push subscriptions', () => {
+  assert.deepEqual(normalizePushSubscription({
+    endpoint: 'https://push.example.test/subscription-id',
+    expirationTime: null,
+    keys: { auth: 'auth-key', p256dh: 'public-key' },
+  }), {
+    auth: 'auth-key',
+    endpoint: 'https://push.example.test/subscription-id',
+    expirationTime: null,
+    p256dh: 'public-key',
+  })
+  assert.equal(normalizePushSubscription({ endpoint: 'http://unsafe.example.test' }), null)
+  assert.equal(normalizePushSubscription({ endpoint: 'https://push.example.test', keys: {} }), null)
 })

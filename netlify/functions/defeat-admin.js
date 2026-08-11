@@ -10,15 +10,15 @@ export async function handler(event) {
   if (!safeSecretEqual(getBearerToken(event), configuredToken)) return json(401, { error: '관리자 인증에 실패했습니다.' })
 
   try {
-    const [characters, subscribers] = await Promise.all([
-      selectRows('defeat_characters?select=id,subscriber_id,guild_name,nickname,alerts_enabled,is_defeated,last_checked_at,last_notified_at,created_at&order=created_at.desc'),
-      selectRows('defeat_subscribers?select=id,alerts_enabled'),
+    const [characters, subscriptions] = await Promise.all([
+      selectRows('defeat_push_characters?select=id,subscription_id,guild_name,nickname,alerts_enabled,is_defeated,last_checked_at,last_notified_at,created_at&order=created_at.desc'),
+      selectRows('defeat_push_subscriptions?select=id,alerts_enabled'),
     ])
-    const subscriberState = new Map(subscribers.map((subscriber) => [subscriber.id, subscriber.alerts_enabled]))
+    const subscriptionState = new Map(subscriptions.map((subscription) => [subscription.id, subscription.alerts_enabled]))
 
     return json(200, {
       characters: characters.map((character) => ({
-        accountAlertsEnabled: subscriberState.get(character.subscriber_id) !== false,
+        accountAlertsEnabled: subscriptionState.get(character.subscription_id) !== false,
         alertsEnabled: character.alerts_enabled,
         createdAt: character.created_at,
         guildName: character.guild_name,

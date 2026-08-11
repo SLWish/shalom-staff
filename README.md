@@ -20,26 +20,34 @@ If you are developing a production application, we recommend using TypeScript wi
 The standalone defeat alert app is served from `/defeat-alert/`.
 
 - Public status: `/defeat-alert/`
-- Private subscriber management: delivered through an email magic link
+- Private device management: stored as a random token in that browser only
 - Hidden admin view: `/defeat-alert/admin`
 - Monitor: `monitor-defeats` runs every minute through Netlify Scheduled Functions
 
 Deployment setup:
 
-1. Run `supabase/defeat-alerts.sql` once in the Supabase SQL Editor.
-2. Enable two-step verification on the dedicated Gmail account and create an
-   app password.
-3. Add `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `DEFEAT_FROM_NAME`,
-   `DEFEAT_LINK_SECRET`, and `DEFEAT_ADMIN_TOKEN` to the Netlify environment
-   variables. `DEFEAT_SITE_URL` is optional when using the default Netlify URL.
+1. Run `supabase/defeat-alerts.sql` for a new database, or
+   `supabase/defeat-push-migration.sql` for an existing Defeat Watch database.
+2. Generate a VAPID key pair and add `VAPID_PUBLIC_KEY` and
+   `VAPID_PRIVATE_KEY` to the staff Netlify site's environment variables.
+3. Add `DEFEAT_ADMIN_TOKEN` to protect the hidden nickname-only admin view.
 4. Deploy the site. The first scheduled monitor run populates the public status.
 
-Subscriber email addresses stay in server-only RLS tables. Public and admin APIs
-return nicknames and alert state only.
+Browser push endpoints and encryption keys stay in server-only RLS tables.
+Public and admin APIs return nicknames and alert state only.
 
 For a separate Netlify address using the same repository, set
 `VITE_APP_MODE=defeat`, `VITE_DEFEAT_API_BASE=/defeat-api`, and
 `DEFEAT_MONITOR_ENABLED=false` on the second site. The standalone frontend then
 uses the staff site's API and does not need copies of its Gmail or Supabase
-secrets. Set `DEFEAT_SITE_URL` only on the staff site to the standalone site's
-public origin so email links open the standalone app.
+secrets. Push notifications open the standalone public origin.
+
+### Browser push notifications
+
+The current registration flow uses browser Web Push rather than email. Run
+`supabase/defeat-push-migration.sql` once, then add `VAPID_PUBLIC_KEY` and
+`VAPID_PRIVATE_KEY` to the staff Netlify site's environment variables. Generate
+a stable key pair with `npx web-push generate-vapid-keys --json`; changing that
+pair later requires users to subscribe again. Push endpoints and encryption keys
+remain in server-only RLS tables, while each device keeps its own management
+token in local storage.

@@ -83,6 +83,7 @@ button { cursor: pointer; }
 .defeat-primary-button { width: 100%; min-height: 50px; margin-top: 22px; border: 0; border-radius: 11px; color: #fff; background: var(--defeat-primary); font-weight: 900; }
 .defeat-form-message { margin-top: 14px; }
 .defeat-privacy { display: block; margin-top: 15px; color: var(--defeat-muted); font-size: 11px; line-height: 1.6; }
+.defeat-push-manager { margin-top: 18px; }
 .defeat-how-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 14px; color: #fff; background: var(--defeat-ink); font-size: 22px; }
 .defeat-how-card ol { margin: 0; padding-left: 20px; color: var(--defeat-muted); font-size: 13px; line-height: 2; }
 .defeat-footer { padding: 24px; border-top: 1px solid var(--defeat-line); color: var(--defeat-muted); text-align: center; font-size: 11px; }
@@ -93,6 +94,8 @@ button { cursor: pointer; }
 .defeat-account-toggle small, .defeat-add-character small { color: var(--defeat-muted); font-size: 12px; }
 .defeat-account-toggle button { min-width: 72px; padding: 9px 13px; border: 0; border-radius: 999px; color: #7c8495; background: #e9ecf2; font-weight: 800; }
 .defeat-account-toggle button.on { color: #fff; background: var(--defeat-success); }
+.defeat-push-controls { display: flex; align-items: center; gap: 7px; }
+.defeat-account-toggle .defeat-push-controls button.test { min-width: auto; color: var(--defeat-primary); background: #eeecff; }
 .defeat-character-stack { display: grid; gap: 12px; margin-top: 16px; }
 .defeat-character-card { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .defeat-character-main { display: flex; align-items: center; gap: 13px; }
