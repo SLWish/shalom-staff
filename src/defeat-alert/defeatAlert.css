@@ -110,6 +110,9 @@ button { cursor: pointer; }
 .defeat-character-main h2 { font-size: 16px; }
 .defeat-character-main p { margin-top: 4px; color: var(--defeat-muted); font-size: 11px; }
 .defeat-character-actions { display: flex; gap: 7px; }
+.defeat-repeat-setting { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.defeat-repeat-setting label { color: var(--defeat-muted); font-size: 11px; font-weight: 800; }
+.defeat-repeat-setting select { min-height: 35px; padding: 0 28px 0 10px; border: 1px solid var(--defeat-line); border-radius: 9px; color: var(--defeat-ink); background: #fff; font-size: 12px; font-weight: 700; }
 .defeat-character-actions button { padding: 8px 11px; border: 1px solid var(--defeat-line); border-radius: 9px; background: #fff; font-size: 12px; font-weight: 700; }
 .defeat-character-actions button.danger { color: var(--defeat-danger); }
 .defeat-add-character { margin-top: 16px; padding: 18px 20px; display: grid; grid-template-columns: 1fr minmax(190px, .75fr) auto; align-items: center; gap: 12px; }
@@ -141,6 +144,7 @@ button { cursor: pointer; }
   .defeat-guild-card { min-height: 220px; }
   .defeat-character-card { align-items: flex-start; flex-direction: column; }
   .defeat-character-actions { width: 100%; }
+  .defeat-repeat-setting { width: 100%; margin-left: 0; justify-content: space-between; }
   .defeat-character-actions button { flex: 1; }
   .defeat-add-character { grid-template-columns: 1fr; }
   .defeat-admin-list article { align-items: flex-start; flex-direction: column; }

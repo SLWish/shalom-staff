@@ -19,7 +19,7 @@ async function getDevice(event) {
 
 async function getManageState(device) {
   const characters = await selectRows(
-    `defeat_push_characters?select=id,guild_name,nickname,alerts_enabled,last_wave,last_api_date,last_checked_at,is_defeated,defeated_at,last_notified_at,created_at&subscription_id=eq.${device.id}&order=created_at.asc`,
+    `defeat_push_characters?select=id,guild_name,nickname,alerts_enabled,repeat_interval_minutes,last_wave,last_api_date,last_checked_at,is_defeated,defeated_at,last_notified_at,created_at&subscription_id=eq.${device.id}&order=created_at.asc`,
   )
   return {
     alertsEnabled: device.alerts_enabled,
@@ -35,6 +35,7 @@ async function getManageState(device) {
       lastNotifiedAt: character.last_notified_at,
       lastWave: character.last_wave,
       nickname: character.nickname,
+      repeatIntervalMinutes: character.repeat_interval_minutes || 0,
     })),
   }
 }
@@ -91,6 +92,16 @@ export async function handler(event) {
       await updateRows(
         `defeat_push_characters?id=eq.${encodeURIComponent(payload.characterId)}&subscription_id=eq.${device.id}`,
         { alerts_enabled: Boolean(payload.enabled), updated_at: now },
+      )
+    } else if (payload.action === 'set-repeat-interval') {
+      if (!payload.characterId) return json(400, { error: '캐릭터 정보가 없습니다.' })
+      const repeatIntervalMinutes = Number(payload.repeatIntervalMinutes)
+      if (![0, 10, 15, 30, 60, 120, 180].includes(repeatIntervalMinutes)) {
+        return json(400, { error: '지원하지 않는 재알림 주기입니다.' })
+      }
+      await updateRows(
+        `defeat_push_characters?id=eq.${encodeURIComponent(payload.characterId)}&subscription_id=eq.${device.id}`,
+        { repeat_interval_minutes: repeatIntervalMinutes, updated_at: now },
       )
     } else if (payload.action === 'delete-character') {
       if (!payload.characterId) return json(400, { error: '캐릭터 정보가 없습니다.' })

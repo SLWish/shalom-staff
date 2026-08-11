@@ -507,6 +507,12 @@ function SubscribePage() {
         <div className="defeat-character-stack">
           {deviceState.characters.map((character) => <article className="defeat-character-card" key={character.id}>
             <div className="defeat-character-main"><span className={!character.alertsEnabled ? 'paused' : character.isDefeated ? 'danger' : ''}>{!character.alertsEnabled ? 'PAUSE' : character.isDefeated ? 'DEFEAT' : 'ON'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
+            <div className="defeat-repeat-setting">
+              <label htmlFor={`repeat-${character.id}`}>재알림</label>
+              <select id={`repeat-${character.id}`} disabled={busy} value={character.repeatIntervalMinutes || 0} onChange={(event) => runAction({ action: 'set-repeat-interval', characterId: character.id, repeatIntervalMinutes: Number(event.target.value) })}>
+                <option value="0">반복 없음</option><option value="10">10분</option><option value="15">15분</option><option value="30">30분</option><option value="60">1시간</option><option value="120">2시간</option><option value="180">3시간</option>
+              </select>
+            </div>
             <div className="defeat-character-actions">
               <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">{character.alertsEnabled ? '일시중지' : '다시 켜기'}</button>
               <button className="danger" disabled={busy} onClick={() => window.confirm(`${character.nickname}을(를) 삭제할까요?`) && runAction({ action: 'delete-character', characterId: character.id })} type="button">삭제</button>
@@ -597,6 +603,12 @@ function ManageApp() {
             {state.characters.map((character) => (
               <article className="defeat-character-card" key={character.id}>
                 <div className="defeat-character-main"><span className={!character.alertsEnabled ? 'paused' : character.isDefeated ? 'danger' : ''}>{!character.alertsEnabled ? 'PAUSE' : character.isDefeated ? 'DEFEAT' : 'ON'}</span><div><h2>{character.nickname}</h2><p>{character.guildName} · 마지막 확인 {formatDateTime(character.lastCheckedAt)}</p></div></div>
+                <div className="defeat-repeat-setting">
+                  <label htmlFor={`repeat-legacy-${character.id}`}>재알림</label>
+                  <select id={`repeat-legacy-${character.id}`} disabled={busy} value={character.repeatIntervalMinutes || 0} onChange={(event) => runAction({ action: 'set-repeat-interval', characterId: character.id, repeatIntervalMinutes: Number(event.target.value) })}>
+                    <option value="0">반복 없음</option><option value="10">10분</option><option value="15">15분</option><option value="30">30분</option><option value="60">1시간</option><option value="120">2시간</option><option value="180">3시간</option>
+                  </select>
+                </div>
                 <div className="defeat-character-actions">
                   <button disabled={busy} onClick={() => runAction({ action: 'toggle-character', characterId: character.id, enabled: !character.alertsEnabled })} type="button">{character.alertsEnabled ? '일시중지' : '다시 켜기'}</button>
                   <button className="danger" disabled={busy} onClick={() => window.confirm(`${character.nickname}을(를) 삭제할까요?`) && runAction({ action: 'delete-character', characterId: character.id })} type="button">삭제</button>

@@ -12,6 +12,7 @@ create table if not exists public.defeat_push_subscriptions (
   expiration_time bigint,
   manage_token_hash text not null unique,
   alerts_enabled boolean not null default true,
+  repeat_interval_minutes integer not null default 0 check (repeat_interval_minutes in (0, 10, 15, 30, 60, 120, 180)),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -40,5 +41,9 @@ create index if not exists defeat_push_characters_subscription_idx
 
 alter table public.defeat_push_subscriptions enable row level security;
 alter table public.defeat_push_characters enable row level security;
+
+-- Safe to run on projects that already have the push tables.
+alter table public.defeat_push_characters
+  add column if not exists repeat_interval_minutes integer not null default 0;
 
 -- Do not add anon/authenticated policies. Netlify Functions use the service role.

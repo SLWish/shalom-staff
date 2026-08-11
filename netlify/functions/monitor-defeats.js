@@ -23,6 +23,12 @@ function sameInstant(left, right) {
   return new Date(left).getTime() === new Date(right).getTime()
 }
 
+function repeatIsDue(character, checkedAt) {
+  const minutes = Number(character.repeat_interval_minutes || 0)
+  if (!minutes || !character.last_notified_at) return false
+  return new Date(checkedAt).getTime() - new Date(character.last_notified_at).getTime() >= minutes * 60 * 1000
+}
+
 async function saveMonitorState({ errorMessage, lastSuccessAt, sourceStatus }, checkedAt) {
   const existing = await selectRows('defeat_monitor_state?select=last_success_at&id=eq.global&limit=1')
   await upsertRows('defeat_monitor_state', [{
@@ -66,7 +72,7 @@ async function updatePushSubscriptions(statusRows, event, checkedAt) {
       status.is_defeated &&
       character.alerts_enabled &&
       subscription?.alerts_enabled &&
-      !sameInstant(character.notified_for_api_date, status.api_date),
+      (!sameInstant(character.notified_for_api_date, status.api_date) || repeatIsDue(character, checkedAt)),
     )
 
     if (shouldNotify) {

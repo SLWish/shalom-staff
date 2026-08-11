@@ -89,6 +89,7 @@ create table if not exists public.defeat_push_characters (
   nickname text not null,
   nickname_key text not null,
   alerts_enabled boolean not null default true,
+  repeat_interval_minutes integer not null default 0 check (repeat_interval_minutes in (0, 10, 15, 30, 60, 120, 180)),
   last_wave bigint,
   last_api_date timestamptz,
   last_checked_at timestamptz,
@@ -117,6 +118,9 @@ alter table public.defeat_member_status enable row level security;
 alter table public.defeat_monitor_state enable row level security;
 alter table public.defeat_push_subscriptions enable row level security;
 alter table public.defeat_push_characters enable row level security;
+
+alter table public.defeat_push_characters
+  add column if not exists repeat_interval_minutes integer not null default 0;
 
 -- Do not create anon/authenticated policies for these tables.
 -- Netlify Functions use SUPABASE_SERVICE_ROLE_KEY and return only safe fields.
