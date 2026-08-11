@@ -4,6 +4,7 @@ const DEFAULT_UPSTREAM = 'https://shalom-staff.netlify.app/.netlify/functions'
 const ALLOWED_ENDPOINTS = new Set([
   'defeat-admin',
   'defeat-manage',
+  'defeat-nickname-search',
   'defeat-status',
   'defeat-subscribe',
 ])
@@ -31,7 +32,10 @@ export async function handler(event) {
   if (event.headers?.authorization) headers.Authorization = event.headers.authorization
 
   try {
-    const upstreamResponse = await fetch(`${upstream}/${endpoint}`, {
+    const query = endpoint === 'defeat-nickname-search'
+      ? `?q=${encodeURIComponent(String(event.queryStringParameters?.q || ''))}`
+      : ''
+    const upstreamResponse = await fetch(`${upstream}/${endpoint}${query}`, {
       method: event.httpMethod,
       headers,
       ...(!['GET', 'HEAD'].includes(event.httpMethod) && event.body ? { body: event.body } : {}),

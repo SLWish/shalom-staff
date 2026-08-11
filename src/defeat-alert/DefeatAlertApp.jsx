@@ -14,6 +14,12 @@ function defeatApiUrl(functionName) {
   return `${API_BASE}/${functionName}`
 }
 
+function defeatApiUrlWithQuery(functionName, params) {
+  const url = defeatApiUrl(functionName)
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}${params.toString()}`
+}
+
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -52,6 +58,80 @@ function formatDuration(minutes) {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
   return rest ? `${hours}시간 ${rest}분` : `${hours}시간`
+}
+
+function NicknameAutocomplete({ maxLength = 40, onChange, placeholder, required = false, value }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [dismissedValue, setDismissedValue] = useState('')
+
+  useEffect(() => {
+    const query = value.trim()
+    if (query.length < 2 || query === dismissedValue) {
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      try {
+        const params = new URLSearchParams({ q: query })
+        const result = await requestJson(defeatApiUrlWithQuery('defeat-nickname-search', params), {
+          signal: controller.signal,
+        })
+        setSuggestions(result.suggestions || [])
+        setOpen(true)
+      } catch (error) {
+        if (error.name !== 'AbortError') setSuggestions([])
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }, 250)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [dismissedValue, value])
+
+  const choose = (suggestion) => {
+    setDismissedValue(suggestion.nickname)
+    onChange(suggestion.nickname)
+    setSuggestions([])
+    setLoading(false)
+    setOpen(false)
+  }
+
+  return <div className="defeat-nickname-field">
+    <input
+      autoComplete="off"
+      maxLength={maxLength}
+      onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+      onChange={(event) => {
+        setDismissedValue('')
+        setSuggestions([])
+        setLoading(false)
+        setOpen(false)
+        onChange(event.target.value)
+      }}
+      onFocus={() => suggestions.length && setOpen(true)}
+      placeholder={placeholder}
+      required={required}
+      value={value}
+    />
+    {loading && <span className="defeat-nickname-loading">검색 중…</span>}
+    {open && suggestions.length > 0 && <div className="defeat-nickname-suggestions">
+      {suggestions.map((suggestion) => <button
+        key={`${suggestion.guildName}:${suggestion.nickname}`}
+        onClick={() => choose(suggestion)}
+        type="button"
+      >
+        <strong>{suggestion.nickname}</strong>
+        <small>{suggestion.guildName}</small>
+      </button>)}
+    </div>}
+  </div>
 }
 
 function AppFrame({ children, compact = false }) {
@@ -191,7 +271,7 @@ function SubscribePage() {
           <p>닉네임은 ShaLom 1~4군에서 자동으로 확인합니다.</p>
           <label>
             <span>인게임 닉네임</span>
-            <input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="예: SL_Wish" maxLength={40} required />
+            <NicknameAutocomplete value={nickname} onChange={setNickname} placeholder="두 글자 이상 입력" required />
           </label>
           <label>
             <span>알림받을 이메일</span>
@@ -301,7 +381,7 @@ function ManageApp() {
               </article>
             ))}
           </div>
-          <form className="defeat-add-character" onSubmit={addCharacter}><div><strong>부캐 추가</strong><small>1~4군에서 닉네임을 자동으로 찾습니다.</small></div><input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="인게임 닉네임" maxLength={40} required /><button disabled={busy} type="submit">추가</button></form>
+          <form className="defeat-add-character" onSubmit={addCharacter}><div><strong>부캐 추가</strong><small>1~4군에서 닉네임을 자동으로 찾습니다.</small></div><NicknameAutocomplete value={nickname} onChange={setNickname} placeholder="두 글자 이상 입력" required /><button disabled={busy} type="submit">추가</button></form>
           <div className="defeat-delete-account"><button disabled={busy} onClick={() => window.confirm('등록한 모든 캐릭터와 알림 정보를 완전히 삭제할까요?') && runAction({ action: 'delete-account' })} type="button">내 알림 정보 전체 삭제</button></div>
         </>}
       </section>

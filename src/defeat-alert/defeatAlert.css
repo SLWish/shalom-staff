@@ -67,6 +67,13 @@ button { cursor: pointer; }
 .defeat-form-card label span, .defeat-admin-login label span { font-size: 13px; font-weight: 800; }
 .defeat-form-card input, .defeat-add-character input, .defeat-admin-login input { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #dce1ea; border-radius: 11px; outline: none; color: var(--defeat-ink); background: #fff; }
 .defeat-form-card input:focus, .defeat-add-character input:focus, .defeat-admin-login input:focus { border-color: var(--defeat-primary); box-shadow: 0 0 0 4px rgba(101, 88, 232, .1); }
+.defeat-nickname-field { position: relative; width: 100%; }
+.defeat-nickname-loading { position: absolute; top: 15px; right: 13px; color: var(--defeat-muted); font-size: 11px; }
+.defeat-nickname-suggestions { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; overflow: hidden; border: 1px solid var(--defeat-line); border-radius: 12px; background: #fff; box-shadow: 0 16px 38px rgba(38, 46, 65, .16); }
+.defeat-nickname-suggestions button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; border: 0; border-bottom: 1px solid #eef0f5; color: var(--defeat-ink); background: #fff; text-align: left; }
+.defeat-nickname-suggestions button:last-child { border-bottom: 0; }
+.defeat-nickname-suggestions button:hover, .defeat-nickname-suggestions button:focus { background: #f5f3ff; }
+.defeat-nickname-suggestions small { color: var(--defeat-muted); }
 .defeat-primary-button { width: 100%; min-height: 50px; margin-top: 22px; border: 0; border-radius: 11px; color: #fff; background: var(--defeat-primary); font-weight: 900; }
 .defeat-form-message { margin-top: 14px; }
 .defeat-privacy { display: block; margin-top: 15px; color: var(--defeat-muted); font-size: 11px; line-height: 1.6; }
