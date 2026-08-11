@@ -13,8 +13,8 @@
   schedule = "* * * * *"
 
 [[redirects]]
-  from = "/defeat-api/*"
-  to = "https://shalom-staff.netlify.app/.netlify/functions/:splat"
+  from = "/defeat-api/:endpoint"
+  to = "/.netlify/functions/defeat-api-proxy?endpoint=:endpoint"
   status = 200
   force = true
 
