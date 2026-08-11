@@ -13,8 +13,26 @@
   schedule = "* * * * *"
 
 [[redirects]]
-  from = "/defeat-api/:endpoint"
-  to = "/.netlify/functions/defeat-api-proxy?endpoint=:endpoint"
+  from = "/defeat-api/defeat-status"
+  to = "/.netlify/functions/defeat-api-proxy?endpoint=defeat-status"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/defeat-api/defeat-subscribe"
+  to = "/.netlify/functions/defeat-api-proxy?endpoint=defeat-subscribe"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/defeat-api/defeat-manage"
+  to = "/.netlify/functions/defeat-api-proxy?endpoint=defeat-manage"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/defeat-api/defeat-admin"
+  to = "/.netlify/functions/defeat-api-proxy?endpoint=defeat-admin"
   status = 200
   force = true
 
