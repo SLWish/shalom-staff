@@ -50,7 +50,8 @@ function supportsWebPush() {
 }
 
 function isInAppBrowser() {
-  return /KAKAOTALK|NAVER\(inapp|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent)
+  const browserSignature = `${navigator.userAgent} ${document.referrer}`
+  return /KAKAOTALK|NAVER\(inapp|FBAN|FBAV|Instagram|Line\/|ChatGPT|OpenAI|com\.openai\.chatgpt/i.test(browserSignature)
 }
 
 function getExternalBrowserUrl() {
