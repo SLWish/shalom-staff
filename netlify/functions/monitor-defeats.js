@@ -93,7 +93,7 @@ async function updatePushSubscriptions(statusRows, event, checkedAt) {
       }
     }
 
-    await updateRows(`defeat_characters?id=eq.${character.id}`, values)
+    await updateRows(`defeat_push_characters?id=eq.${character.id}`, values)
   }
 
   return notifications
