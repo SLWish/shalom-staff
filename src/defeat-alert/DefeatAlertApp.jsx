@@ -8,6 +8,9 @@ const APP_HOME = IS_STANDALONE ? '/' : '/defeat-alert/'
 const API_BASE = String(import.meta.env.VITE_DEFEAT_API_BASE || '/.netlify/functions').replace(/\/$/, '')
 
 function defeatApiUrl(functionName) {
+  if (API_BASE === '/defeat-api') {
+    return `/.netlify/functions/defeat-api-proxy?endpoint=${encodeURIComponent(functionName)}`
+  }
   return `${API_BASE}/${functionName}`
 }
 
