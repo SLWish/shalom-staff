@@ -82,6 +82,10 @@ button { cursor: pointer; }
 .defeat-nickname-api-error small { color: #b54708; font-size: 11px; }
 .defeat-primary-button { width: 100%; min-height: 50px; margin-top: 22px; border: 0; border-radius: 11px; color: #fff; background: var(--defeat-primary); font-weight: 900; }
 .defeat-form-message { margin-top: 14px; }
+.defeat-external-browser-notice { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; padding: 14px; border-radius: 12px; color: #805400; background: #fff2cb; }
+.defeat-external-browser-notice strong { font-size: 13px; }
+.defeat-external-browser-notice span { font-size: 12px; line-height: 1.5; }
+.defeat-external-browser-notice button { align-self: flex-start; margin-top: 3px; padding: 7px 10px; border: 1px solid rgba(128, 84, 0, .2); border-radius: 8px; color: #805400; background: #fff; font-size: 11px; font-weight: 800; }
 .defeat-privacy { display: block; margin-top: 15px; color: var(--defeat-muted); font-size: 11px; line-height: 1.6; }
 .defeat-push-manager { margin-top: 18px; }
 .defeat-how-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 14px; color: #fff; background: var(--defeat-ink); font-size: 22px; }

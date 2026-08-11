@@ -49,6 +49,10 @@ function supportsWebPush() {
   return window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+function isInAppBrowser() {
+  return /KAKAOTALK|NAVER\(inapp|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent)
+}
+
 function withTimeout(promise, milliseconds, message) {
   let timeoutId
   const timeout = new Promise((resolve, reject) => {
@@ -337,6 +341,8 @@ function SubscribePage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
+  const [copied, setCopied] = useState(false)
+  const inAppBrowser = isInAppBrowser()
 
   const callManage = useCallback(async (manageToken, payload) => requestJson(defeatApiUrl('defeat-push-manage'), {
     ...(payload ? { body: JSON.stringify(payload), method: 'POST' } : {}),
@@ -449,9 +455,21 @@ function SubscribePage() {
             <span>인게임 닉네임</span>
             <NicknameAutocomplete value={nickname} onChange={setNickname} placeholder="두 글자 이상 입력" required />
           </label>
-          <button className="defeat-primary-button" type="submit" disabled={busy}>
-            {busy ? progress || '처리 중…' : deviceState ? '캐릭터 추가 등록' : '이 기기에서 알림 받기'}
+          <button className="defeat-primary-button" type="submit" disabled={busy || inAppBrowser}>
+            {inAppBrowser ? '외부 브라우저에서 등록해주세요' : busy ? progress || '처리 중…' : deviceState ? '캐릭터 추가 등록' : '이 기기에서 알림 받기'}
           </button>
+          {inAppBrowser && <div className="defeat-external-browser-notice">
+            <strong>앱 내부 브라우저에서는 푸시 등록이 제한돼요.</strong>
+            <span>오른쪽 위 ⋮ 메뉴에서 ‘다른 브라우저로 열기’를 선택해주세요.</span>
+            <button onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(window.location.href)
+                setCopied(true)
+              } catch {
+                setError('주소를 복사하지 못했습니다. 브라우저 메뉴에서 직접 열어주세요.')
+              }
+            }} type="button">{copied ? '주소 복사됨' : '사이트 주소 복사'}</button>
+          </div>}
           {message && <div className="defeat-form-message success">{message}</div>}
           {error && <div className="defeat-form-message error">{error}</div>}
           <small className="defeat-privacy">푸시 구독 정보는 서버에 비공개로 저장되며 관리자 화면에도 표시되지 않습니다.</small>
