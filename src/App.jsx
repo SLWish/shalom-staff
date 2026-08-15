@@ -22,6 +22,7 @@ import { fetchSharedHistory } from './services/serverHistoryApi.js'
 import { fetchSeasonSummary } from './services/seasonSummaryApi.js'
 import { getLatestWphRecords } from './services/wphHistory.js'
 import { fetchWphReport } from './services/wphReportApi.js'
+import { DEFAULT_WARNING_SETTINGS, fetchWarningSettings } from './services/warningSettingsApi.js'
 
 const INACTIVE_HOURS_THRESHOLD = 6
 const SHORTAGE_VISIBLE_BEFORE_END_HOURS = 24
@@ -766,10 +767,10 @@ function getMoveCandidatesForGuild(guild, cutScores, wphReport) {
     .sort(compareMoveCandidates)
 }
 
-function getGuildStaffData(guild, cutScores, wphReport) {
+function getGuildStaffData(guild, cutScores, wphReport, warningsEnabled = true) {
   const seasonStart = parseSeasonStart(guild.seasonPeriod)
   const showShortageMembers = shouldShowShortageMembers(guild.seasonEndAt)
-  const allShortageMembers = sortShortageMembers(
+  const allShortageMembers = warningsEnabled ? sortShortageMembers(
     guild.members
       .filter((member) => member.score < (member.effectiveCutScore ?? guild.cutScore))
       .map((member) => ({
@@ -777,7 +778,7 @@ function getGuildStaffData(guild, cutScores, wphReport) {
         shortage: (member.effectiveCutScore ?? guild.cutScore) - member.score,
         lastRecord: member.wph?.apiDate || null,
       })),
-  )
+  ) : []
 
   const activityMembers = guild.members.map((member) => {
     const activity = getActivityMeta(member, seasonStart)
@@ -2022,7 +2023,11 @@ function App() {
   const [archiveStatus, setArchiveStatus] = useState('')
   const [archives, setArchives] = useState(readSeasonArchives)
   const [clockNow, setClockNow] = useState(() => Date.now())
-  const cutScores = useMemo(() => createDefaultCutScores(), [])
+  const [warningSettings, setWarningSettings] = useState(DEFAULT_WARNING_SETTINGS)
+  const cutScores = useMemo(() => ({
+    ...createDefaultCutScores(),
+    ...Object.fromEntries(Object.entries(warningSettings.guilds).map(([guildName, settings]) => [guildName, settings.cutScore])),
+  }), [warningSettings])
   const [guildData, setGuildData] = useState({})
   const [historyByGuild, setHistoryByGuild] = useState(() =>
     Object.fromEntries(guildConfigs.map((config) => [config.guildName, readScoreHistory(config.guildName)])),
@@ -2046,6 +2051,14 @@ function App() {
 
   useEffect(() => {
     let isMounted = true
+    const loadWarningSettings = () => {
+      fetchWarningSettings().then((settings) => {
+        if (isMounted) setWarningSettings(settings)
+      }).catch(() => {})
+    }
+    loadWarningSettings()
+    const warningSettingsTimer = window.setInterval(loadWarningSettings, 15 * 1000)
+
     fetchLatestGuildSnapshots()
       .then((snapshots) => {
         if (!isMounted || snapshots.length === 0) return
@@ -2075,6 +2088,7 @@ function App() {
 
     return () => {
       isMounted = false
+      window.clearInterval(warningSettingsTimer)
     }
   }, [])
 
@@ -2132,8 +2146,13 @@ function App() {
   )
 
   const staffByGuild = useMemo(
-    () => Object.fromEntries(guilds.map((guild) => [guild.guildName, getGuildStaffData(guild, cutScores, serverWphReport)])),
-    [cutScores, guilds, serverWphReport],
+    () => Object.fromEntries(guilds.map((guild) => [guild.guildName, getGuildStaffData(
+      guild,
+      cutScores,
+      serverWphReport,
+      warningSettings.warningsEnabled && warningSettings.guilds[guild.guildName]?.enabled !== false,
+    )])),
+    [cutScores, guilds, serverWphReport, warningSettings],
   )
 
   const guildStats = useMemo(
@@ -2270,16 +2289,19 @@ function App() {
         const archiveGuilds = settled.map((result, index) => {
           const config = activeGuildConfigs[index]
           const cutScore = cutScores[config.guildName] ?? config.defaultCutScore
+          const warningsEnabled = warningSettings.warningsEnabled && warningSettings.guilds[config.guildName]?.enabled !== false
 
           if (result.status === 'fulfilled' && result.value) {
             return {
               ...result.value,
               cutScore,
+              warningsEnabled,
             }
           }
 
           return {
             cutScore,
+            warningsEnabled,
             error: '데이터 불러오기 실패',
             guildName: config.guildName,
             members: [],
@@ -2298,7 +2320,7 @@ function App() {
         archiveSavingRef.current = false
       }
     },
-    [cutScores, refreshGuild],
+    [cutScores, refreshGuild, warningSettings],
   )
 
   useEffect(() => {

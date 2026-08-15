@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+
+def tokenFile = rootProject.file('warning-admin-token.properties')
+def tokenProps = new Properties()
+if (tokenFile.exists()) tokenFile.withInputStream { tokenProps.load(it) }
+def adminToken = tokenProps.getProperty('WARNING_ADMIN_TOKEN', System.getenv('WARNING_ADMIN_TOKEN') ?: '')
+
+android {
+    namespace 'com.shalom.guildadmin'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.shalom.guildadmin'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        buildConfigField 'String', 'API_URL', '"https://shalom-staff.netlify.app/.netlify/functions/warning-settings"'
+        buildConfigField 'String', 'WARNING_ADMIN_TOKEN', '"' + adminToken.replace('"', '\\"') + '"'
+    }
+
+    buildFeatures { buildConfig true }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+}

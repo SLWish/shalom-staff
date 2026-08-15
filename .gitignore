@@ -16,6 +16,13 @@ dist-ssr
 .env.*
 !.env.example
 WPH-records/
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/*.jks
+android/warning-admin-token.properties
+artifacts/*.apk
 
 # Editor directories and files
 .vscode/*

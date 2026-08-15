@@ -68,7 +68,7 @@ export function createSeasonArchive(guilds, saveType = 'auto') {
     archiveTargetAt,
     guilds: guilds.map((guild, index) => {
       const members = Array.isArray(guild.members) ? guild.members : []
-      const failedMembers = members
+      const failedMembers = guild.warningsEnabled === false ? [] : members
         .filter((member) => Number(member.score) < guild.cutScore)
         .map((member) => ({
           cutScore: guild.cutScore,
@@ -87,6 +87,7 @@ export function createSeasonArchive(guilds, saveType = 'auto') {
         failedCount: failedMembers.length,
         failedMembers,
         guildName: guild.guildName,
+        warningsEnabled: guild.warningsEnabled !== false,
         tierLabel: `${index + 1}군`,
         totalMembers: members.length,
       }
