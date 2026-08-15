@@ -38,9 +38,20 @@ public class MainActivity extends Activity {
     private Switch globalSwitch;
     private Button saveButton;
     private TextView statusText;
+    private boolean darkMode;
+    private int backgroundColor;
+    private int surfaceColor;
+    private int primaryTextColor;
+    private int secondaryTextColor;
 
     @Override public void onCreate(Bundle state) {
+        darkMode = getSharedPreferences("display", MODE_PRIVATE).getBoolean("darkMode", true);
+        setTheme(darkMode ? R.style.Theme_ShaLomAdmin_Dark : R.style.Theme_ShaLomAdmin);
         super.onCreate(state);
+        backgroundColor = darkMode ? Color.rgb(17, 19, 26) : Color.rgb(245, 247, 251);
+        surfaceColor = darkMode ? Color.rgb(30, 33, 44) : Color.WHITE;
+        primaryTextColor = darkMode ? Color.rgb(241, 243, 249) : Color.rgb(21, 25, 35);
+        secondaryTextColor = darkMode ? Color.rgb(166, 173, 190) : Color.rgb(104, 112, 131);
         buildUi();
         loadSettings();
     }
@@ -51,14 +62,14 @@ public class MainActivity extends Activity {
         TextView view = new TextView(this);
         view.setText(value);
         view.setTextSize(size);
-        view.setTextColor(Color.rgb(21, 25, 35));
+        view.setTextColor(primaryTextColor);
         if (bold) view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return view;
     }
 
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Color.rgb(245, 247, 251));
+        scroll.setBackgroundColor(backgroundColor);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(28), dp(20), dp(36));
@@ -85,16 +96,32 @@ public class MainActivity extends Activity {
         title.setPadding(0, dp(6), 0, dp(5));
         root.addView(title);
         TextView subtitle = text("저장하면 길드 웹앱에 바로 반영됩니다.", 14, false);
-        subtitle.setTextColor(Color.rgb(104, 112, 131));
+        subtitle.setTextColor(secondaryTextColor);
         subtitle.setPadding(0, 0, 0, dp(22));
         root.addView(subtitle);
+
+        Switch darkModeSwitch = new Switch(this);
+        darkModeSwitch.setText("다크 모드");
+        darkModeSwitch.setTextColor(primaryTextColor);
+        darkModeSwitch.setTextSize(15);
+        darkModeSwitch.setChecked(darkMode);
+        darkModeSwitch.setPadding(dp(18), dp(12), dp(12), dp(12));
+        darkModeSwitch.setBackgroundColor(surfaceColor);
+        darkModeSwitch.setOnCheckedChangeListener((button, checked) -> {
+            getSharedPreferences("display", MODE_PRIVATE).edit().putBoolean("darkMode", checked).apply();
+            recreate();
+        });
+        LinearLayout.LayoutParams darkParams = new LinearLayout.LayoutParams(-1, -2);
+        darkParams.setMargins(0, 0, 0, dp(12));
+        root.addView(darkModeSwitch, darkParams);
 
         globalSwitch = new Switch(this);
         globalSwitch.setText("전체 경고 기능");
         globalSwitch.setTextSize(18);
         globalSwitch.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         globalSwitch.setPadding(dp(18), dp(16), dp(12), dp(16));
-        globalSwitch.setBackgroundColor(Color.WHITE);
+        globalSwitch.setTextColor(primaryTextColor);
+        globalSwitch.setBackgroundColor(surfaceColor);
         root.addView(globalSwitch, new LinearLayout.LayoutParams(-1, -2));
 
         String[][] guilds = {{"ShaLom", "1군", "40000"}, {"ShaLom2", "2군", "15000"}, {"ShaLom3", "3군", "7000"}, {"ShaLom4", "4군", "3000"}};
@@ -112,7 +139,7 @@ public class MainActivity extends Activity {
         root.addView(saveButton, buttonParams);
 
         statusText = text("현재 설정을 불러오는 중…", 13, false);
-        statusText.setTextColor(Color.rgb(104, 112, 131));
+        statusText.setTextColor(secondaryTextColor);
         statusText.setGravity(Gravity.CENTER);
         statusText.setPadding(0, dp(14), 0, 0);
         root.addView(statusText);
@@ -123,7 +150,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(18), dp(15), dp(18), dp(16));
-        card.setBackgroundColor(Color.WHITE);
+        card.setBackgroundColor(surfaceColor);
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, -2);
         cardParams.setMargins(0, dp(12), 0, 0);
         card.setLayoutParams(cardParams);
@@ -131,18 +158,21 @@ public class MainActivity extends Activity {
         Switch enabled = new Switch(this);
         enabled.setText(label + " · " + guildName);
         enabled.setTextSize(17);
+        enabled.setTextColor(primaryTextColor);
         enabled.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         enabled.setChecked(true);
         card.addView(enabled, new LinearLayout.LayoutParams(-1, -2));
 
         TextView scoreLabel = text("경고 기준 점수", 12, true);
-        scoreLabel.setTextColor(Color.rgb(104, 112, 131));
+        scoreLabel.setTextColor(secondaryTextColor);
         scoreLabel.setPadding(0, dp(13), 0, dp(6));
         card.addView(scoreLabel);
         EditText score = new EditText(this);
         score.setInputType(InputType.TYPE_CLASS_NUMBER);
         score.setText(defaultScore);
         score.setTextSize(20);
+        score.setTextColor(primaryTextColor);
+        score.setHintTextColor(secondaryTextColor);
         score.setSelectAllOnFocus(true);
         score.setPadding(dp(12), dp(8), dp(12), dp(8));
         card.addView(score, new LinearLayout.LayoutParams(-1, dp(52)));
