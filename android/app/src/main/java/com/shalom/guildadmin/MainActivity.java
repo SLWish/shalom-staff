@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private int surfaceColor;
     private int primaryTextColor;
     private int secondaryTextColor;
+    private boolean syncingWarningSwitches;
 
     @Override public void onCreate(Bundle state) {
         darkMode = getSharedPreferences("display", MODE_PRIVATE).getBoolean("darkMode", true);
@@ -126,6 +127,7 @@ public class MainActivity extends Activity {
 
         String[][] guilds = {{"ShaLom", "1군", "40000"}, {"ShaLom2", "2군", "15000"}, {"ShaLom3", "3군", "7000"}, {"ShaLom4", "4군", "3000"}};
         for (String[] guild : guilds) root.addView(createGuildCard(guild[0], guild[1], guild[2]));
+        configureWarningSwitchSync();
 
         saveButton = new Button(this);
         saveButton.setText("설정 적용");
@@ -144,6 +146,29 @@ public class MainActivity extends Activity {
         statusText.setPadding(0, dp(14), 0, 0);
         root.addView(statusText);
         setContentView(scroll);
+    }
+
+    private void configureWarningSwitchSync() {
+        globalSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (syncingWarningSwitches) return;
+            syncingWarningSwitches = true;
+            for (GuildControls controls : guildControls.values()) controls.enabled.setChecked(checked);
+            syncingWarningSwitches = false;
+        });
+        for (GuildControls controls : guildControls.values()) {
+            controls.enabled.setOnCheckedChangeListener((button, checked) -> updateGlobalWarningSwitch());
+        }
+    }
+
+    private void updateGlobalWarningSwitch() {
+        if (syncingWarningSwitches) return;
+        boolean allEnabled = true;
+        for (GuildControls controls : guildControls.values()) {
+            if (!controls.enabled.isChecked()) { allEnabled = false; break; }
+        }
+        syncingWarningSwitches = true;
+        globalSwitch.setChecked(allEnabled);
+        syncingWarningSwitches = false;
     }
 
     private View createGuildCard(String guildName, String label, String defaultScore) {
@@ -198,7 +223,9 @@ public class MainActivity extends Activity {
     }
 
     private void applySettings(JSONObject data) {
-        globalSwitch.setChecked(data.optBoolean("warningsEnabled", true));
+        syncingWarningSwitches = true;
+        boolean warningsEnabled = data.optBoolean("warningsEnabled", true);
+        globalSwitch.setChecked(warningsEnabled);
         JSONObject guilds = data.optJSONObject("guilds");
         if (guilds != null) for (Map.Entry<String, GuildControls> entry : guildControls.entrySet()) {
             JSONObject guild = guilds.optJSONObject(entry.getKey());
@@ -206,6 +233,15 @@ public class MainActivity extends Activity {
             entry.getValue().enabled.setChecked(guild.optBoolean("enabled", true));
             entry.getValue().score.setText(String.valueOf(guild.optInt("cutScore", 0)));
         }
+        if (!warningsEnabled) {
+            for (GuildControls controls : guildControls.values()) controls.enabled.setChecked(false);
+        }
+        boolean allEnabled = true;
+        for (GuildControls controls : guildControls.values()) {
+            if (!controls.enabled.isChecked()) { allEnabled = false; break; }
+        }
+        globalSwitch.setChecked(warningsEnabled && allEnabled);
+        syncingWarningSwitches = false;
         String updatedAt = data.optString("updatedAt", "");
         setBusy(false, updatedAt.isEmpty() ? "현재 설정을 불러왔습니다." : "마지막 적용 " + formatTime(updatedAt));
     }
@@ -217,7 +253,11 @@ public class MainActivity extends Activity {
         }
         try {
             JSONObject payload = new JSONObject();
-            payload.put("warningsEnabled", globalSwitch.isChecked());
+            boolean anyGuildEnabled = false;
+            for (GuildControls controls : guildControls.values()) {
+                if (controls.enabled.isChecked()) { anyGuildEnabled = true; break; }
+            }
+            payload.put("warningsEnabled", anyGuildEnabled);
             JSONObject guilds = new JSONObject();
             for (Map.Entry<String, GuildControls> entry : guildControls.entrySet()) {
                 String raw = entry.getValue().score.getText().toString().replace(",", "").trim();
