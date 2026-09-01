@@ -152,12 +152,15 @@ function getDepartedMembers(previousMembers, latestMembers, latestGuild) {
     }))
 }
 
-function dedupeDepartures(departures, currentNicknamesByGuild) {
+export function dedupeDepartures(departures, currentNicknamesByGuild) {
   const byMember = new Map()
+  const currentNicknames = new Set(
+    Object.values(currentNicknamesByGuild).flatMap((nicknames) => [...nicknames]),
+  )
 
   departures.forEach((member) => {
-    if (!member.nickname || currentNicknamesByGuild[member.guildName]?.has(member.nickname)) return
-    const key = `${member.guildName}:${member.nickname}`
+    if (!member.nickname || currentNicknames.has(member.nickname)) return
+    const key = member.nickname
     const current = byMember.get(key)
     if (!current || new Date(member.departedAt).getTime() > new Date(current.departedAt).getTime()) {
       byMember.set(key, member)

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildDepartureEventRows } from '../netlify/functions/collect-on-roster-change.js'
-import { getCurrentSeasonKeys, normalizeDepartureEvents } from '../netlify/functions/history.js'
+import { dedupeDepartures, getCurrentSeasonKeys, normalizeDepartureEvents } from '../netlify/functions/history.js'
 
 test('departure events preserve guild, score, and timestamps', () => {
   const capturedAt = '2026-09-02T03:04:05.000Z'
@@ -39,4 +39,38 @@ test('departure history is limited to the current season keys', () => {
     ]),
     ['2026-09-01_2026-09-06'],
   )
+})
+
+test('a member moving between guilds 1 through 6 is not a departure', () => {
+  const departures = [{
+    departedAt: '2026-09-02T03:04:05.000Z',
+    guildName: 'ShaLom2',
+    nickname: 'SL_Move',
+    score: 12345,
+  }]
+
+  assert.deepEqual(dedupeDepartures(departures, {
+    ShaLom: new Set(),
+    ShaLom2: new Set(),
+    ShaLom3: new Set(['SL_Move']),
+    ShaLom4: new Set(),
+    ShaLom5: new Set(),
+    ShaLom6: new Set(),
+  }), [])
+})
+
+test('only the latest final guild is shown after leaving all six guilds', () => {
+  const departures = [
+    { departedAt: '2026-09-02T03:00:00.000Z', guildName: 'ShaLom2', nickname: 'SL_Leave', score: 10000 },
+    { departedAt: '2026-09-02T04:00:00.000Z', guildName: 'ShaLom3', nickname: 'SL_Leave', score: 15000 },
+  ]
+
+  assert.deepEqual(dedupeDepartures(departures, {
+    ShaLom: new Set(),
+    ShaLom2: new Set(),
+    ShaLom3: new Set(),
+    ShaLom4: new Set(),
+    ShaLom5: new Set(),
+    ShaLom6: new Set(),
+  }), [departures[1]])
 })
