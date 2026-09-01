@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildDepartureEventRows } from '../netlify/functions/collect-on-roster-change.js'
-import { normalizeDepartureEvents } from '../netlify/functions/history.js'
+import { getCurrentSeasonKeys, normalizeDepartureEvents } from '../netlify/functions/history.js'
 
 test('departure events preserve guild, score, and timestamps', () => {
   const capturedAt = '2026-09-02T03:04:05.000Z'
@@ -28,4 +28,15 @@ test('departure events preserve guild, score, and timestamps', () => {
 
 test('invalid pseudo events are ignored', () => {
   assert.deepEqual(normalizeDepartureEvents([{ nickname: 'SL_Test', raw_json: { event: 'joined' } }]), [])
+})
+
+test('departure history is limited to the current season keys', () => {
+  assert.deepEqual(
+    getCurrentSeasonKeys([
+      { season_key: '2026-09-01_2026-09-06' },
+      { season_key: '2026-09-01_2026-09-06' },
+      { season_key: 'unknown-start_unknown-end' },
+    ]),
+    ['2026-09-01_2026-09-06'],
+  )
 })

@@ -183,6 +183,10 @@ export function normalizeDepartureEvents(rows) {
     .filter(Boolean)
 }
 
+export function getCurrentSeasonKeys(guilds) {
+  return [...new Set(guilds.map((guild) => guild.season_key).filter((key) => key && !String(key).startsWith('unknown')))]
+}
+
 function normalizeArchive(archive) {
   return {
     ...(archive.archive_json || {}),
@@ -246,9 +250,12 @@ export async function handler() {
     const snapshotsByGuild = groupSnapshotsByGuild(guildRows)
     const currentNicknamesByGuild = {}
     const latestMemberRows = []
-    const departureEventRows = await selectRows(
-      `member_snapshots?select=captured_at,nickname,score,raw_json&guild_name=eq.${DEPARTURE_EVENT_GUILD_NAME}&order=captured_at.desc&limit=200`,
-    )
+    const currentSeasonKeys = getCurrentSeasonKeys(latestGuilds)
+    const departureEventRows = currentSeasonKeys.length === 0
+      ? []
+      : await selectRows(
+        `member_snapshots?select=captured_at,nickname,score,raw_json&guild_name=eq.${DEPARTURE_EVENT_GUILD_NAME}&season_key=in.(${currentSeasonKeys.map(encodeURIComponent).join(',')})&order=captured_at.desc&limit=200`,
+      )
     const departures = normalizeDepartureEvents(departureEventRows)
 
     for (const guild of latestGuilds) {
