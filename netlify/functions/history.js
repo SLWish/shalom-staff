@@ -2,6 +2,7 @@ import { selectRows } from './_shared/supabaseRest.js'
 
 const ARCHIVE_TARGET_TOLERANCE_MS = 10 * 60 * 1000
 const LOCAL_ROSTER_GUILD_NAME = '__local_roster__'
+const DEPARTURE_EVENT_GUILD_NAME = '__departure__'
 const ACTIVE_GUILD_NAMES = new Set(['ShaLom', 'ShaLom2', 'ShaLom3', 'ShaLom4'])
 const REST_GUILD_NAMES = new Set(['ShaLom5', 'ShaLom6'])
 const TRACKED_GUILD_NAMES = new Set([...ACTIVE_GUILD_NAMES, ...REST_GUILD_NAMES])
@@ -166,6 +167,22 @@ function dedupeDepartures(departures, currentNicknamesByGuild) {
   return [...byMember.values()].sort((a, b) => new Date(b.departedAt).getTime() - new Date(a.departedAt).getTime())
 }
 
+export function normalizeDepartureEvents(rows) {
+  return rows
+    .map((row) => {
+      const event = row.raw_json || {}
+      if (event.event !== 'departed' || !event.guildName || !row.nickname) return null
+      return {
+        departedAt: event.departedAt || row.captured_at,
+        guildName: event.guildName,
+        lastSeenAt: event.lastSeenAt || null,
+        nickname: row.nickname,
+        score: Number(event.score ?? row.score) || 0,
+      }
+    })
+    .filter(Boolean)
+}
+
 function normalizeArchive(archive) {
   return {
     ...(archive.archive_json || {}),
@@ -201,12 +218,12 @@ async function getPreviousSeasonScores(archive) {
   const capturedAt = archiveJson.recoveredFromSnapshotAt || archiveJson.savedAt || archive.saved_at
   const capturedFilter = capturedAt ? `&captured_at=eq.${encodeURIComponent(capturedAt)}` : ''
   let members = await selectRows(
-    `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}${capturedFilter}&limit=200`,
+    `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}&guild_name=neq.${DEPARTURE_EVENT_GUILD_NAME}${capturedFilter}&limit=200`,
   )
 
   if (members.length === 0) {
     members = await selectRows(
-      `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}&order=captured_at.desc&limit=200`,
+      `member_snapshots?select=guild_name,nickname,score,captured_at,season_key&season_key=eq.${encodeURIComponent(archive.season_key)}&guild_name=neq.__local_wph__&guild_name=neq.${LOCAL_ROSTER_GUILD_NAME}&guild_name=neq.${DEPARTURE_EVENT_GUILD_NAME}&order=captured_at.desc&limit=200`,
     )
   }
 
@@ -229,7 +246,10 @@ export async function handler() {
     const snapshotsByGuild = groupSnapshotsByGuild(guildRows)
     const currentNicknamesByGuild = {}
     const latestMemberRows = []
-    const departures = []
+    const departureEventRows = await selectRows(
+      `member_snapshots?select=captured_at,nickname,score,raw_json&guild_name=eq.${DEPARTURE_EVENT_GUILD_NAME}&order=captured_at.desc&limit=200`,
+    )
+    const departures = normalizeDepartureEvents(departureEventRows)
 
     for (const guild of latestGuilds) {
       const snapshots = (snapshotsByGuild[guild.guild_name] || []).slice(0, 12)

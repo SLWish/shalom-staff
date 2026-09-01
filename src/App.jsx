@@ -1303,7 +1303,7 @@ function MembersPage({ guilds }) {
       <section className="staff-section">
         <div className="section-title">
           <span>{'\uC774\uC804 \uAC31\uC2E0\uC5D0\uB294 \uC788\uC5C8\uACE0, \uD604\uC7AC API \uBA85\uB2E8\uC5D0\uC11C \uC0AC\uB77C\uC9C4 \uBA64\uBC84'}</span>
-          <h2>{'\uB3C4\uC911 \uD0C8\uD1F4\uC790'}</h2>
+          <h2>{'\uB3C4\uC911 \uD0C8\uD1F4\uC790'} · {visibleDepartedMembers.length}명</h2>
         </div>
         {visibleDepartedMembers.length === 0 ? (
           <EmptyState>

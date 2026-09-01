@@ -5,6 +5,7 @@ import { insertRows, selectRows } from './_shared/supabaseRest.js'
 
 const MAX_MEMBERS = 20
 const INACTIVE_HOURS = 6
+const DEPARTURE_EVENT_GUILD_NAME = '__departure__'
 
 function json(statusCode, body) {
   return {
@@ -87,10 +88,10 @@ function buildRows(guilds, capturedAt) {
     })
   })
 
-  return { guildRows, memberRows }
+  return { guildRows, memberRows, seasonKey }
 }
 
-async function getLatestKnownNicknames(guildName) {
+async function getLatestKnownMembers(guildName) {
   const [latestGuild] = await selectRows(
     `guild_snapshots?select=captured_at&guild_name=eq.${encodeURIComponent(guildName)}&order=captured_at.desc&limit=1`,
   )
@@ -98,18 +99,21 @@ async function getLatestKnownNicknames(guildName) {
   if (!latestGuild?.captured_at) return null
 
   const members = await selectRows(
-    `member_snapshots?select=nickname&guild_name=eq.${encodeURIComponent(guildName)}&captured_at=eq.${encodeURIComponent(latestGuild.captured_at)}`,
+    `member_snapshots?select=nickname,score,captured_at&guild_name=eq.${encodeURIComponent(guildName)}&captured_at=eq.${encodeURIComponent(latestGuild.captured_at)}`,
   )
 
-  return new Set(members.map((member) => member.nickname).filter(Boolean))
+  return {
+    capturedAt: latestGuild.captured_at,
+    members: new Map(members.filter((member) => member.nickname).map((member) => [member.nickname, member])),
+  }
 }
 
 async function detectRosterChanges(rosters) {
   const changes = []
 
   for (const roster of rosters) {
-    const previousNicknames = await getLatestKnownNicknames(roster.guildName)
-    if (!previousNicknames) {
+    const previous = await getLatestKnownMembers(roster.guildName)
+    if (!previous) {
       changes.push({
         guildName: roster.guildName,
         reason: 'no_previous_snapshot',
@@ -119,8 +123,14 @@ async function detectRosterChanges(rosters) {
     }
 
     const currentNicknames = new Set(roster.members.map((member) => member.nickname).filter(Boolean))
-    const newMembers = [...currentNicknames].filter((nickname) => !previousNicknames.has(nickname))
-    const departedMembers = [...previousNicknames].filter((nickname) => !currentNicknames.has(nickname))
+    const newMembers = [...currentNicknames].filter((nickname) => !previous.members.has(nickname))
+    const departedMembers = [...previous.members.values()]
+      .filter((member) => !currentNicknames.has(member.nickname))
+      .map((member) => ({
+        lastSeenAt: member.captured_at || previous.capturedAt,
+        nickname: member.nickname,
+        score: Number(member.score) || 0,
+      }))
 
     if (newMembers.length > 0 || departedMembers.length > 0) {
       changes.push({
@@ -133,6 +143,33 @@ async function detectRosterChanges(rosters) {
   }
 
   return changes
+}
+
+export function buildDepartureEventRows(changes, capturedAt, seasonKey) {
+  return changes.flatMap((change) =>
+    (change.departedMembers || []).map((member) => ({
+      achieved: false,
+      api_date: null,
+      captured_at: capturedAt,
+      cut_score: 0,
+      guild_name: DEPARTURE_EVENT_GUILD_NAME,
+      inactive_minutes: null,
+      inactive_over_six_hours: false,
+      nickname: member.nickname,
+      raw_json: {
+        departedAt: capturedAt,
+        event: 'departed',
+        guildName: change.guildName,
+        lastSeenAt: member.lastSeenAt || null,
+        nickname: member.nickname,
+        score: Number(member.score) || 0,
+      },
+      score: Number(member.score) || 0,
+      season_key: seasonKey,
+      shortage: 0,
+      wave: null,
+    })),
+  )
 }
 
 export async function handler(event) {
@@ -172,15 +209,17 @@ export async function handler(event) {
       })
       .sort((a, b) => guildConfigs.find((config) => config.guildName === a.guildName).order - guildConfigs.find((config) => config.guildName === b.guildName).order)
 
-    const { guildRows, memberRows } = buildRows(guilds, capturedAt)
+    const { guildRows, memberRows, seasonKey } = buildRows(guilds, capturedAt)
+    const departureEventRows = buildDepartureEventRows(changes, capturedAt, seasonKey)
     await insertRows('guild_snapshots', guildRows)
-    await insertRows('member_snapshots', memberRows)
+    await insertRows('member_snapshots', [...memberRows, ...departureEventRows])
 
     return json(200, {
       capturedAt,
       changes,
       guildCount: guildRows.length,
       memberCount: memberRows.length,
+      departureEventCount: departureEventRows.length,
       refreshed: true,
     })
   } catch (error) {
