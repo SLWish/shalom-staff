@@ -4,6 +4,7 @@ import AppHeader from './components/AppHeader.jsx'
 import DataNotice from './components/DataNotice.jsx'
 import GuildSelector from './components/GuildSelector.jsx'
 import GuildSummaryCard from './components/GuildSummaryCard.jsx'
+import GuildMetricPage from './components/GuildMetricPage.jsx'
 import MenuDrawer from './components/MenuDrawer.jsx'
 import PageShell from './components/PageShell.jsx'
 import { activeGuildConfigs, guildConfigs, menuItems } from './config/guildConfig.js'
@@ -979,7 +980,7 @@ function SeasonCountdownCard({ now, seasonEndAt }) {
   )
 }
 
-function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName }) {
+function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName, onMetricSelect }) {
   const isLoading = selectedEntry.guild.apiState?.status === 'loading'
   const seasonEndAt = getFirstSeasonEndAt(guildStats)
 
@@ -990,7 +991,7 @@ function GuildStatusPage({ guildStats, now, selectedEntry, selectedGuildName }) 
         <LoadingState guildName={selectedGuildName} />
       ) : (
         <section className="guild-summary-grid selected-summary-grid" aria-label={`${selectedGuildName} 길드 현황`}>
-          <GuildSummaryCard guild={selectedEntry.guild} stats={selectedEntry.stats} summary={selectedEntry.staffData} />
+          <GuildSummaryCard onMetricSelect={onMetricSelect} guild={selectedEntry.guild} stats={selectedEntry.stats} summary={selectedEntry.staffData} />
         </section>
       )}
       <p className="selected-debug">현재 선택 길드: {selectedGuildName}</p>
@@ -2019,6 +2020,7 @@ function MoveCandidatesPage({ guildStats, isAllScope, selectedEntry, selectedGui
 
 function App() {
   const [activePage, setActivePage] = useState('status')
+  const [selectedMetric, setSelectedMetric] = useState('members')
   const [apiStates, setApiStates] = useState({})
   const [archiveStatus, setArchiveStatus] = useState('')
   const [archives, setArchives] = useState(readSeasonArchives)
@@ -2240,11 +2242,12 @@ function App() {
       if (loadingGuildsRef.current.has(config.guildName)) return null
 
       loadingGuildsRef.current.add(config.guildName)
-      const cutScore = cutScores[config.guildName] ?? config.defaultCutScore
       updateApiState(config.guildName, { status: 'loading' })
 
       try {
-        const data = await fetchGuildSeason(config, cutScore)
+        // Live cut scores are applied in guilds and saveSeasonArchive. Keep fetching
+        // independent of settings polling so it cannot restart the loading effects.
+        const data = await fetchGuildSeason(config, config.defaultCutScore)
         const checkedAt = new Date().toISOString()
         const nextHistory = compareAndSaveScoreHistory(config.guildName, data.members, {
           checkedAt,
@@ -2274,7 +2277,7 @@ function App() {
         loadingGuildsRef.current.delete(config.guildName)
       }
     },
-    [cutScores, updateApiState],
+    [updateApiState],
   )
 
   const saveSeasonArchive = useCallback(
@@ -2399,6 +2402,13 @@ function App() {
     if (nextConfig) refreshGuild(nextConfig)
   }
 
+  const handleMetricSelect = (metric) => {
+    setSelectedMetric(metric)
+    setMoveScope(selectedGuildName)
+    setActivePage(metric === 'moves' ? 'moves' : 'metric')
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }
+
   const handleSelectPage = (pageId) => {
     setActivePage(pageId)
     setIsMenuOpen(false)
@@ -2448,9 +2458,18 @@ function App() {
         {activePage === 'status' && (
           <GuildStatusPage
             guildStats={activeGuildStats}
+            onMetricSelect={handleMetricSelect}
             now={clockNow}
             selectedEntry={selectedEntry}
             selectedGuildName={selectedGuildName}
+          />
+        )}
+        {activePage === 'metric' && (
+          <GuildMetricPage
+            entry={selectedEntry}
+            metric={selectedMetric}
+            onBack={() => handleSelectPage('status')}
+            onLoadDetails={() => refreshPlayerDetails(selectedConfig, selectedEntry.guild.members)}
           />
         )}
         {activePage === 'new-members' && <NewMembersPage guildStats={activeGuildStats} />}

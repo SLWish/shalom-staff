@@ -65,7 +65,7 @@ function SummaryList({ emptyText, items, renderItem, title }) {
   )
 }
 
-function GuildSummaryCard({ guild, stats, summary }) {
+function GuildSummaryCard({ guild, stats, summary, onMetricSelect }) {
   const statusText = getStatusText(guild.apiState?.status)
 
   return (
@@ -79,51 +79,51 @@ function GuildSummaryCard({ guild, stats, summary }) {
       </div>
 
       <div className="guild-card-metrics staff-metrics">
-        <div>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('cut')}>
           <span>기준점수</span>
           <strong>{stats.cutScore.toLocaleString()}</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('members')}>
           <span>총원</span>
           <strong>{stats.memberCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('capacity')}>
           <span>정원</span>
           <strong>{stats.memberCount}/{stats.maxMembers}</strong>
           <small>{getCapacityText(stats)}</small>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('shortage')}>
           <span>미달</span>
           <strong>{stats.warningCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('inactive')}>
           <span>미활동<br />6시간+</span>
           <strong>{stats.inactiveSixHourCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('notJoined')}>
           <span>미참여</span>
           <strong>{stats.seasonNotJoinedCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('details')}>
           <span>{stats.unverifiedCount > 0 ? '기록 불가' : stats.detailPendingCount > 0 ? '상세 미조회' : '기록 불가'}</span>
           <strong>{stats.unverifiedCount > 0 ? stats.unverifiedCount : stats.detailPendingCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('new')}>
           <span>신규 확인</span>
           <strong>{stats.newMemberCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('nickname')}>
           <span>닉네임 확인</span>
           <strong>{stats.nicknameWarningCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('moves')}>
           <span>이동 후보</span>
           <strong>{stats.moveCandidateCount}명</strong>
-        </div>
-        <div>
+        </button>
+        <button type="button" className="metric-link" onClick={() => onMetricSelect('achievement')}>
           <span>달성률</span>
           <strong>{stats.achievementRate}%</strong>
-        </div>
+        </button>
       </div>
 
       <div className="last-refresh-line">마지막 갱신: {formatDateTime(guild.lastRefreshedAt)}</div>

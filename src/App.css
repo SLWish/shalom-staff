@@ -568,13 +568,52 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.guild-card-metrics div {
+.guild-card-metrics div,
+.guild-card-metrics .metric-link {
   display: grid;
   gap: 4px;
   padding: 12px;
   background: #0b0f17;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.metric-link {
+  position: relative;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.metric-link::after {
+  content: '›';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--muted);
+}
+
+.guild-card-metrics .metric-link:hover,
+.guild-card-metrics .metric-link:focus-visible {
+  border-color: var(--yellow);
+}
+
+.metric-link:focus-visible,
+.metric-back:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 3px;
+}
+
+.metric-back {
+  justify-self: start;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .guild-card-metrics strong {
