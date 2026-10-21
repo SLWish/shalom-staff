@@ -768,10 +768,11 @@ function getMoveCandidatesForGuild(guild, cutScores, wphReport) {
     .sort(compareMoveCandidates)
 }
 
-function getGuildStaffData(guild, cutScores, wphReport, warningsEnabled = true) {
+function getGuildStaffData(guild, cutScores, wphReport) {
   const seasonStart = parseSeasonStart(guild.seasonPeriod)
   const showShortageMembers = shouldShowShortageMembers(guild.seasonEndAt)
-  const allShortageMembers = warningsEnabled ? sortShortageMembers(
+  // Warning controls govern archived warnings, not the current score shortfall.
+  const allShortageMembers = sortShortageMembers(
     guild.members
       .filter((member) => member.score < (member.effectiveCutScore ?? guild.cutScore))
       .map((member) => ({
@@ -779,7 +780,7 @@ function getGuildStaffData(guild, cutScores, wphReport, warningsEnabled = true) 
         shortage: (member.effectiveCutScore ?? guild.cutScore) - member.score,
         lastRecord: member.wph?.apiDate || null,
       })),
-  ) : []
+  )
 
   const activityMembers = guild.members.map((member) => {
     const activity = getActivityMeta(member, seasonStart)
@@ -2152,9 +2153,8 @@ function App() {
       guild,
       cutScores,
       serverWphReport,
-      warningSettings.warningsEnabled && warningSettings.guilds[guild.guildName]?.enabled !== false,
     )])),
-    [cutScores, guilds, serverWphReport, warningSettings],
+    [cutScores, guilds, serverWphReport],
   )
 
   const guildStats = useMemo(
