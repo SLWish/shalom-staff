@@ -2367,6 +2367,13 @@ function App() {
   }, [activePage, guildData, refreshGuild])
 
   useEffect(() => {
+    if (activePage !== 'status' && activePage !== 'metric') return
+    const config = activeGuildConfigs.find((item) => item.guildName === selectedGuildName)
+    const data = guildData[selectedGuildName]
+    if (config && data?.members?.length) refreshPlayerDetails(config, data.members)
+  }, [activePage, selectedGuildName, guildData, refreshPlayerDetails, clockNow])
+
+  useEffect(() => {
     if (activePage !== 'members') return
     let cancelled = false
 

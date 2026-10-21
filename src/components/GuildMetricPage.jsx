@@ -41,8 +41,12 @@ export default function GuildMetricPage({ entry, metric, onBack, onLoadDetails }
             try { await onLoadDetails() } finally { setLoading(false) }
           }}>{loading ? '상세 확인 중…' : '개인 상세 기록 확인'}</button>
         )}
+        {['inactive', 'notJoined'].includes(metric) && stats.detailPendingCount + stats.unverifiedCount > 0 && (
+          <p>개인 기록 미확인 {stats.detailPendingCount + stats.unverifiedCount}명 · 확인된 기록만 집계합니다.</p>
+        )}
         {hiddenShortage ? <p className="summary-empty">미달자 목록은 시즌 마지막 날 공개됩니다.</p> : members.length === 0 ? (
-          <p className="summary-empty">해당 인원이 없습니다.</p>
+          <p className="summary-empty">{['inactive', 'notJoined'].includes(metric) && stats.detailPendingCount + stats.unverifiedCount > 0
+            ? '개인 기록 확인 후 인원이 표시됩니다.' : '해당 인원이 없습니다.'}</p>
         ) : (
           <div className="staff-card-list compact-list">
             {members.map((member) => (

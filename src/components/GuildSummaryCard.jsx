@@ -67,6 +67,10 @@ function SummaryList({ emptyText, items, renderItem, title }) {
 
 function GuildSummaryCard({ guild, stats, summary, onMetricSelect }) {
   const statusText = getStatusText(guild.apiState?.status)
+  const uncheckedCount = stats.detailPendingCount + stats.unverifiedCount
+  const activityCountText = (count) => count > 0 || uncheckedCount === 0
+    ? `${count}명`
+    : stats.detailPendingCount > 0 ? '확인 중' : '확인 필요'
 
   return (
     <article className="guild-summary-card selected-guild-card">
@@ -98,11 +102,13 @@ function GuildSummaryCard({ guild, stats, summary, onMetricSelect }) {
         </button>
         <button type="button" className="metric-link" onClick={() => onMetricSelect('inactive')}>
           <span>미활동<br />6시간+</span>
-          <strong>{stats.inactiveSixHourCount}명</strong>
+          <strong>{activityCountText(stats.inactiveSixHourCount)}</strong>
+          {uncheckedCount > 0 && <small>미확인 {uncheckedCount}명</small>}
         </button>
         <button type="button" className="metric-link" onClick={() => onMetricSelect('notJoined')}>
           <span>미참여</span>
-          <strong>{stats.seasonNotJoinedCount}명</strong>
+          <strong>{activityCountText(stats.seasonNotJoinedCount)}</strong>
+          {uncheckedCount > 0 && <small>미확인 {uncheckedCount}명</small>}
         </button>
         <button type="button" className="metric-link" onClick={() => onMetricSelect('details')}>
           <span>{stats.unverifiedCount > 0 ? '기록 불가' : stats.detailPendingCount > 0 ? '상세 미조회' : '기록 불가'}</span>
@@ -157,7 +163,7 @@ function GuildSummaryCard({ guild, stats, summary, onMetricSelect }) {
           )}
         />
         <SummaryList
-          emptyText="6시간 이상 미활동 없음"
+          emptyText={uncheckedCount > 0 ? `개인 기록 미확인 ${uncheckedCount}명 · 확인 후 집계` : '6시간 이상 미활동 없음'}
           items={summary.inactiveMembers}
           title="6시간 이상 미활동"
           renderItem={(member) => (
